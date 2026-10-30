@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>案C 記録の版画</title>
+<link rel="stylesheet" href="fonts/shippori-mincho/500.css">
+<link rel="stylesheet" href="fonts/shippori-mincho/700.css">
+<style>
+  :root { --paper: #E9E4D4; --ink: #22201C; --shu: #C2412B; --soft: #6B665B; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Shippori Mincho', serif; }
+  .page { display: grid; grid-template-columns: 1fr auto; gap: 32px; padding: 32px 40px; height: 100vh; box-sizing: border-box; }
+  .plate { position: relative; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+  .title { writing-mode: vertical-rl; font-size: 36px; font-weight: 700; line-height: 1.6; letter-spacing: 0.08em; margin: 0; height: 100%; max-height: 640px; }
+  .title small { font-size: 16px; font-weight: 500; color: var(--soft); letter-spacing: 0.02em; margin-left: 12px; }
+  .record { position: absolute; left: 0; bottom: 0; max-width: 30em; background: var(--paper); padding: 16px 20px 6px 0; font-size: 17px; line-height: 1.9; }
+  .record p { margin: 0 0 6px; }
+  .record .who { font-weight: 700; margin-right: 0.6em; }
+  .record .ask { color: var(--soft); }
+  .seal { color: var(--shu); font-weight: 700; }
+  @media (max-width: 700px) {
+    .page { grid-template-columns: 1fr; grid-template-rows: auto 1fr; padding: 20px 16px; gap: 8px; }
+    .title { writing-mode: horizontal-tb; font-size: 24px; height: auto; order: -1; }
+    .title small { display: block; margin: 4px 0 0; }
+    .record { font-size: 15px; }
+  }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<div class="page">
+  <div class="plate">
+    <canvas id="c"></canvas>
+    <div class="record">
+      <p class="ask"><span class="who">記録係</span>写真を撮りはじめたのは、どうしてですか。</p>
+      <p><span class="who">森 由真</span>港がなくなる前に、毎朝そこで働く人の顔を残しておきたかったんです。</p>
+      <p class="seal">残る棚、一段。</p>
+    </div>
+  </div>
+  <h1 class="title">誰の人生の記録を、最後の一段に収めますか。<small>記録庫の最後の棚　四人が待っている</small></h1>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { buildRoom, isoCamera } from './scene3d.js';
+import { dither } from './post.js';
+
+// 明るさだけが意味をもつので、素材は明度の差で塗り分ける
+const g = (v) => `#${v}${v}${v}`;
+const pal = {
+  base: g('30'), floor: g('e0'), floorLine: g('a0'), wall: g('f4'), wall2: g('c4'), people: [g('70'), g('f8'), g('48'), g('b0')], window: g('ff'),
+  wood: g('70'), books: [g('40'), g('90'), g('60'), g('c0'), g('50'), g('a0')],
+  slot: '#FF2010', paper: g('f0'), ink: g('20'), lampShade: g('f0'), lampGlow: g('ff'), lampEmissive: 0.8,
+  lampLight: '#ffffff', lampIntensity: 5, skin: g('e8'), hair: [g('30'), g('b0'), g('40'), g('58')],
+};
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+renderer.setPixelRatio(1);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#ffffff');
+const { root, figures } = buildRoom(pal);
+scene.add(root);
+// 輪郭を墨で引く
+root.traverse((o) => {
+  if (o.isMesh && o.geometry && o.name !== 'slot') {
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 60), new THREE.LineBasicMaterial({ color: '#000000' }));
+    o.add(e);
+  }
+});
+// 人には輪郭線（裏面を少し太らせた墨）をつけて、点描に埋もれないようにする
+figures.forEach((f) => f.traverse((o) => {
+  if (o.isMesh && !o.userData.hull) {
+    const h = new THREE.Mesh(o.geometry, new THREE.MeshBasicMaterial({ color: '#000000', side: THREE.BackSide }));
+    h.scale.setScalar(1.12); h.userData.hull = true; o.add(h);
+  }
+}));
+scene.add(new THREE.HemisphereLight('#ffffff', '#666666', 1.4));
+const sun = new THREE.DirectionalLight('#ffffff', 2.6);
+sun.position.set(-9, 9, 5); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 });
+scene.add(sun);
+
+let cam, post;
+function size() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setSize(w, h, false);
+  const a = w / h;
+  cam = isoCamera(a, a < 1 ? 3.4 / a : 4.7);
+  cam.position.set(14, 11, 14); cam.lookAt(-0.2, 0.8, 0.6);
+  post = dither(renderer, w, h, { scale: 2, paper: '#E9E4D4', ink: '#22201C', accent: '#C2412B' });
+}
+size(); addEventListener('resize', size);
+let t0 = performance.now();
+(function loop(now) {
+  const t = (now - t0) / 1000;
+  figures[2].position.y = 0.06 + Math.abs(Math.sin(t * 3)) * 0.04;
+  post(scene, cam);
+  requestAnimationFrame(loop);
+})(t0);
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>旅の一場面（仮組み）</title>
+<link rel="stylesheet" href="fonts/shippori-mincho/500.css">
+<link rel="stylesheet" href="fonts/shippori-mincho/700.css">
+<style>
+  :root { --paper: #EDE6D3; --ink: #1E1B22; --shu: #C8452D; --soft: #6B665B; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font-family: 'Shippori Mincho', serif; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  .hud { position: fixed; left: 28px; top: 22px; font-size: 17px; line-height: 1.6; }
+  .hud b { font-size: 26px; display: block; }
+  .card { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(30em, 86vw); background: var(--paper); padding: 22px 26px 20px; box-shadow: 8px 8px 0 var(--ink); opacity: 0; transition: opacity .25s ease-out, top .5s ease-out, transform .5s ease-out; }
+  .card.show { opacity: 1; }
+  .card.docked { left: 28px; top: auto; bottom: 24px; transform: scale(.78); transform-origin: bottom left; }
+  .card h2 { margin: 0 0 6px; font-size: 28px; }
+  .card p { margin: 0; font-size: 18px; line-height: 1.8; }
+  .bubble { position: fixed; background: var(--paper); padding: 10px 14px 9px; font-size: 18px; line-height: 1.7; max-width: 15em; box-shadow: 5px 5px 0 var(--ink); opacity: 0; transition: opacity .2s ease-out; }
+  .bubble.show { opacity: 1; }
+  .bubble b { display: block; font-size: 13px; color: var(--soft); }
+  .bubble .c { display: inline-block; white-space: pre; }
+  .vote { position: fixed; font-size: 15px; background: var(--ink); color: var(--paper); padding: 2px 8px; transform: translate(-50%, -100%); opacity: 0; transition: opacity .2s; white-space: nowrap; }
+  .vote.show { opacity: 1; }
+  .rule { position: fixed; right: 28px; top: 22px; text-align: right; font-size: 16px; line-height: 1.6; opacity: 0; transition: opacity .3s; }
+  .rule.show { opacity: 1; }
+  .rule b { display: block; font-size: 24px; }
+  .rule .tally { color: var(--shu); font-weight: 700; font-size: 20px; }
+  .ask { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); width: min(30em, 90vw); background: var(--ink); color: var(--paper); padding: 20px 24px; opacity: 0; transition: opacity .4s; }
+  .ask.show { opacity: 1; }
+  .ask h3 { margin: 0 0 12px; font-size: 24px; }
+  .ask button { font: 700 16px 'Shippori Mincho', serif; background: var(--paper); color: var(--ink); border: 0; padding: 10px 14px; margin-right: 8px; }
+  .ask button.sub { background: transparent; color: var(--paper); text-decoration: underline; }
+  .caption { position: fixed; left: 50%; top: 38%; transform: translateX(-50%); font-size: 26px; font-weight: 700; background: var(--paper); padding: 6px 16px; opacity: 0; transition: opacity .6s; }
+  .caption.show { opacity: 1; }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud"><b>旅の三日目</b>食料 あと九日分　海まで あと四十里　一行 五人</div>
+<div class="card" id="card"><h2>橋が落ちている。</h2><p>舟は一艘。乗れるのは四人と荷車だけで、一度しか渡れない。誰か一人は、この岸に残ることになる。</p></div>
+<div class="rule" id="rule"><b>決め方：多数決</b>一行のいまの決まり<div class="tally" id="tally"></div></div>
+<div class="caption" id="caption">大槻 文雄さんと、ここで別れた。</div>
+<div class="ask" id="ask"><h3>この決め方で、よかったですか。</h3><button>次の出来事から、決め方を自分で選ぶ</button><button class="sub">旅の記録を見る</button></div>
+<script type="module">
+import { createJourney } from './journey.js';
+
+const LINES = [
+  { at: 9.5, who: 0, mood: { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 }, text: '荷車は手放せない。食料がなければ、向こう岸で全員がもたない。' },
+  { at: 14.5, who: 1, shake: 1, mood: { tension: 0.9, sorrow: 0, warmth: 0, hope: 0 }, text: 'わ、私は残れません。向こうで…待ってる子たちが、いるんです。' },
+  { at: 20, who: 4, shake: 0.5, mood: { tension: 0.5, sorrow: 0.3, warmth: 0, hope: 0 }, text: '拾ってもらった私が残るべき、ですよね。…でも、ひとりは、こわい。' },
+  { at: 25.5, who: 2, sorrow: 1, rain: 0.8, mood: { tension: 0, sorrow: 1, warmth: 0, hope: 0 }, text: '足の悪い年寄りが乗れば、舟が重くなる。わしが残ろう。' },
+  { at: 31, who: 3, mood: { tension: 0, sorrow: 0.3, warmth: 0.3, hope: 0.4 }, text: '待って。くじにしませんか。誰の気持ちも入らないように。' },
+];
+const VOTES = [['渡瀬 透', '文雄さん'], ['春日 灯', '文雄さん'], ['大槻 文雄', '文雄'], ['森 由真', 'くじを望む'], ['ナギ', '文雄さん']];
+
+const bubbles = [];
+let current = null;
+const ui = {
+  frame(state, figures, toScreen) {
+    bubbles.forEach((b) => {
+      const f = figures[b.who];
+      const [x, y] = toScreen(f.position.clone().setY(f.position.y + 1.3));
+      b.el.style.left = Math.max(12, Math.min(innerWidth - b.el.offsetWidth - 12, x - 30)) + 'px';
+      b.el.style.top = (y - b.el.offsetHeight - 10) + 'px';
+      // 言葉の揺れ：焦りは字が震え、悲しみは字がにじんで間が開く
+      const sh = b.shake || 0, so = b.sorrow || 0;
+      b.chars.forEach((c, i) => {
+        const jx = sh ? (Math.random() - 0.5) * 4 * sh : 0, jy = sh ? (Math.random() - 0.5) * 4 * sh : 0;
+        const sink = so ? Math.sin(state.t * 1.2 + i * 0.4) * 1.5 * so + so * (i / b.chars.length) * 4 : 0;
+        c.style.transform = `translate(${jx}px, ${jy + sink}px)`;
+        c.style.filter = so ? `blur(${(0.3 + 0.9 * Math.max(0, Math.sin(state.t * 0.9 + i * 0.6))) * so}px)` : '';
+        c.style.opacity = so ? String(1 - so * 0.35 * (i / b.chars.length)) : '1';
+        c.style.marginRight = so ? `${so * 1.5}px` : '0';
+      });
+    });
+    votes.forEach((v) => {
+      const f = figures[v.i];
+      const [x, y] = toScreen(f.position.clone().setY(f.position.y + 1.25));
+      v.el.style.left = x + 'px'; v.el.style.top = y + 'px';
+    });
+  },
+};
+
+const j = createJourney(document.getElementById('c'), ui, { seed: 7 });
+j.state.caravanX = 25;
+
+function say(line) {
+  bubbles.forEach((b) => b.el.classList.remove('show'));
+  const el = document.createElement('div');
+  el.className = 'bubble';
+  el.innerHTML = `<b>${j.figures[line.who].userData.name}</b>`;
+  const chars = [...line.text].map((ch) => { const s = document.createElement('span'); s.className = 'c'; s.textContent = ch; el.appendChild(s); return s; });
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  const b = { el, chars, who: line.who, shake: line.shake || 0, sorrow: line.sorrow || 0 };
+  bubbles.push(b);
+  const u = j.figures[line.who].userData;
+  j.figures.forEach((f) => { f.userData.shake = 0; });
+  u.shake = line.shake || 0;
+  if (line.sorrow) u.sorrow = line.sorrow;
+  j.state.speaker = line.who;
+  Object.assign(j.state.moodTarget, line.mood);
+  if (line.rain) j.state.rainTarget = line.rain;
+  setTimeout(() => { b.shake = 0; }, 99999);
+}
+
+const votes = [];
+const $ = (id) => document.getElementById(id);
+const events = [
+  [6.6, () => { j.state.walking = false; }],
+  [7.0, () => $('card').classList.add('show')],
+  [9.0, () => $('card').classList.add('docked')],
+  ...LINES.map((l) => [l.at, () => say(l)]),
+  [36.5, () => { bubbles.forEach((b) => b.el.classList.remove('show')); j.state.speaker = null; Object.assign(j.state.moodTarget, { tension: 0.3, sorrow: 0.2, warmth: 0, hope: 0 }); j.figures.forEach((f) => { f.userData.shake = 0; }); $('card').classList.remove('show'); $('rule').classList.add('show'); }],
+  ...VOTES.map(([, to], k) => [37.2 + k * 0.7, () => {
+    const el = document.createElement('div'); el.className = 'vote'; el.textContent = to; document.body.appendChild(el);
+    votes.push({ el, i: [0, 1, 2, 3, 4][k] });
+    requestAnimationFrame(() => el.classList.add('show'));
+  }]),
+  [41.2, () => { $('tally').textContent = '大槻 文雄　四票'; }],
+  [44, () => {
+    votes.forEach((v) => v.el.classList.remove('show'));
+    const F = j.figures;
+    [0, 1, 3, 4].forEach((i, k) => { const u = F[i].userData; u.mode = 'free'; u.inBoat = k; });
+    const fu = F[2].userData; fu.mode = 'free'; fu.x = j.RIVER[0] - 1.3; fu.z = 4.4; fu.y = 0;
+    j.setCamX(j.RIVER[0] + 0.5); j.state.boatMode = true;
+    j.state.speaker = 2;
+    Object.assign(j.state.moodTarget, { tension: 0, sorrow: 0.8, warmth: 0, hope: 0 });
+  }],
+  [45.5, () => { j.state.boatTarget = j.RIVER[1] - 0.2; $('rule').classList.remove('show'); }],
+  [50, () => $('caption').classList.add('show')],
+  [54, () => { $('caption').classList.remove('show'); $('ask').classList.add('show'); }],
+];
+let ei = 0;
+function step(dt) {
+  j.update(dt);
+  while (ei < events.length && events[ei][0] <= j.state.t) { events[ei][1](); ei++; }
+}
+events.sort((a, b) => a[0] - b[0]);
+// 録画のときは外から一コマずつ進める
+if (new URLSearchParams(location.search).has('capture')) {
+  window.step = step;
+} else {
+  let last = performance.now();
+  (function loop(now) { step(Math.min(0.05, (now - last) / 1000)); last = now; requestAnimationFrame(loop); })(last);
+}
+</script>
+</body>
+</html>
