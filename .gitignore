@@ -1,0 +1,24 @@
+# Claude 関係の作業ファイル
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+
+# 鍵・トークン・環境変数
+.env
+.env.*
+*.key
+*.pem
+secrets*
+*token*
+*apikey*
+
+# 書き出したデータ（生活史を含むことがある）
+hitowaku-*.json
+*-結果.csv
+
+# その他
+node_modules/
+.DS_Store
+Thumbs.db
+*.log

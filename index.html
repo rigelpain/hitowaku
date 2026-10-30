@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ひとわく</title>
+  <meta name="description" content="一つしかない枠を誰に渡すか。生活史と人と決まりを組み合わせて、トロッコ問題の形をした問いをつくり、AI に選ばせてみる授業用の道具。">
+  <meta name="theme-color" content="#2E4638">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%232E4638'/%3E%3Cpath d='M16 7l9 5-9 5-9-5z' fill='%23E9C64B'/%3E%3Cpath d='M7 12v9l9 5v-9z' fill='%23D9D5C4'/%3E%3Cpath d='M25 12v9l-9 5v-9z' fill='%23BDB8A3'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="masthead">
+      <h1>ひとわく</h1>
+      <p>枠は一つ、待っている人は何人か。生活史をもつ人と決まりを組み合わせて問いをつくり、AI に話を聞かせて選ばせてみる。何を聞き、何を理由にしたかを残して、条件を変えて比べるための道具です。</p>
+    </header>
+
+    <section class="board" aria-label="いまの問題の場面">
+      <div class="stage">
+        <canvas id="scene" role="img" aria-label="いまの問題の場面。人の名札を押すと、その人の生活史が開きます。"></canvas>
+        <div class="tags" id="tags"></div>
+      </div>
+      <div class="peek" id="peek" aria-live="polite"></div>
+      <div class="board-foot">
+        <div class="q" id="board-q"></div>
+        <label>問題を切り替える
+          <select id="problem-switch"></select>
+        </label>
+      </div>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="作業の切り替え" id="tabs"></nav>
+    <main class="panel" id="panel" role="tabpanel"></main>
+
+    <footer class="foot">
+      <div class="actions">
+        <button class="btn" id="export-all">全部を書き出す</button>
+        <label class="btn" for="import-file">書き出したものを読み込む</label>
+        <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden">
+        <button class="btn quiet" id="reset-samples">見本に戻す</button>
+        <button class="btn danger" id="clear-all">全部消す</button>
+      </div>
+      <p>データはこのブラウザの中だけに保存されます。API キーは書き出しに含まれません。<a href="https://github.com/rigelpain/hitowaku">ソースコードと設計メモ</a></p>
+    </footer>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
