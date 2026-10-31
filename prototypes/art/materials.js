@@ -88,13 +88,15 @@ export function ground(top, side = '#7A5A3C', kind = 'grass') {
 }
 
 // 水：揺れる法線、浅瀬の明るさ、岸の泡
-export function water(col = '#3F7FA0') {
+// flow：川の流れる向き。'z'（既定）なら岸は x の river.x と river.y、'x' なら岸は z の river.x と river.y
+export function water(col = '#3F7FA0', flow = 'z') {
   const m = new THREE.MeshStandardMaterial({ color: col, roughness: 0.15, metalness: 0.0 });
-  m.name = 'water';
+  m.name = 'water-' + flow;
+  const across = flow === 'x' ? 'z' : 'x';
   return patch(m, {
     color: `
-      vec2 xz = vWorld.xz;
-      float d = min(vWorld.x - (river.x - 0.5), (river.y + 0.5) - vWorld.x);
+      vec2 xz = ${flow === 'x' ? 'vWorld.zx' : 'vWorld.xz'};
+      float d = min(vWorld.${across} - (river.x - 0.5), (river.y + 0.5) - vWorld.${across});
       float deep = smoothstep(0.0, 2.2, d);
       vec3 c = mix(diffuseColor.rgb * 1.15, diffuseColor.rgb * 0.8, deep);
       float n = fbm(xz * 1.6 + vec2(time * 0.25, time * 0.1));
