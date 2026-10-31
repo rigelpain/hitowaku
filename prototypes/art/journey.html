@@ -70,6 +70,9 @@
   /* 旅の前の説明 */
   .intro { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(30, 27, 34, 0.35); font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; }
   .intro.show { display: flex; }
+  #nogl .facts { display: block; }
+  #nogl .facts div { display: block; white-space: normal; margin-bottom: 10px; }
+  #nogl .facts dd { font-size: 14px; font-weight: 500; line-height: 1.6; }
   .intro > div { background: var(--paper); box-shadow: var(--lift); width: min(620px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 26px 28px 22px; box-sizing: border-box; }
   .intro h1 { margin: 0 0 8px; font-size: 30px; font-weight: 700; letter-spacing: 0.01em; }
   .intro .world { margin: 0 0 18px; font-size: 15px; line-height: 1.8; color: #3B3833; }
@@ -135,6 +138,16 @@
 <div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Ship in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>多数決</b><div class="tally" id="tally"></div></div><div class="opts" id="opts"><button id="optBtn" aria-expanded="false">Options</button><div class="menu"><p>Show</p><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div><p>Journey <span id="seedLabel"></span></p><div class="row"><button id="about">About</button><button id="newJourney">New journey</button></div></div></div></div>
 <section class="side" id="mindPanel"><h4>Minds<span><button id="toAuto">Back to AI</button> <button id="restart">Restart</button></span></h4><p class="note">ふだんは AI が旅ごとに決めます。動かした値は、あなたの決めた値として次のやり直しにも残ります。</p><div class="legend"><span><i style="background:var(--ink)"></i>見積もり</span><span><i style="background:var(--shu)"></i>一般常識</span><span><i style="background:#7FA05E"></i>実際</span></div><div id="minds"></div></section>
 <section class="side" id="logPanel"><h4>Log</h4><div id="log"></div></section>
+<section class="intro" id="nogl"><div>
+  <h1>3D を描けませんでした</h1>
+  <p class="world">このブラウザでは、いま WebGL（3D の描画）が使えない状態です。多くの場合、ブラウザの設定で GPU が使われていないことが原因です。</p>
+  <dl class="facts"><div class="goal"><dt>Chrome</dt><dd>設定 → システム →「グラフィック アクセラレーションが使用可能な場合は使用する」をオンにして、ブラウザを開き直す</dd></div>
+  <div class="goal"><dt>Edge</dt><dd>設定 → システムとパフォーマンス →「グラフィック アクセラレーションが使用可能な場合は使用する」をオンにして、開き直す</dd></div>
+  <div class="goal"><dt>Safari</dt><dd>macOS と Safari を新しい版にして、開き直す</dd></div>
+  <div class="goal"><dt>Firefox</dt><dd>設定 → 一般 → パフォーマンス →「ハードウェアアクセラレーションを使用する」をオンにして、開き直す</dd></div>
+  <div class="goal"><dt>ほかに</dt><dd>別のブラウザで開く。学校の端末では、管理の設定で GPU が止められていることもある</dd></div></dl>
+  <p class="how" id="noglDetail"></p>
+</div></section>
 <section class="intro" id="intro"><div>
   <h1>最後の船</h1>
   <p class="world">川上の町は、来月ダムの底に沈みます。住んでいた人たちは、それぞれの行き先へ散っていきました。この一行は、海辺の港から出る最後の船を目指して歩いています。</p>
@@ -203,7 +216,15 @@ try { saved = JSON.parse(sessionStorage.getItem('hitowaku-policies') || '{}'); }
 const params = new URLSearchParams(location.search);
 const capture = params.has('capture');
 const seed = Number(params.get('seed')) || (capture ? 7 : 1000 + Math.floor(Math.random() * 9000));
-const j = createJourney(document.getElementById('c'), ui, { seed, policies: saved });
+// WebGL が使えないブラウザでは、何も描けずに止まる代わりに、見られるようにする手順を出す
+let j;
+try {
+  j = createJourney(document.getElementById('c'), ui, { seed, policies: saved });
+} catch (err) {
+  document.getElementById('nogl').classList.add('show');
+  document.getElementById('noglDetail').textContent = 'ブラウザが返した理由：' + (err?.message || err);
+  throw err;
+}
 // 橋の手前まで歩く。着くまでの時間は、一行がどう歩みを合わせるかで変わる
 j.state.caravanX = j.state.arriveX - 16;
 // 出来事の時刻は、橋に着いた時刻から数える（台本の 6.6 秒が着いた瞬間）
