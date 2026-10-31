@@ -3,7 +3,7 @@
 // 分けて持つもの
 //   COMMON        一般常識：「この種類の人はこれくらいの速さで歩く」という、皆が共有している思い込み
 //   ability       その人が実際に歩ける速さ（本人も他人も、最初は知らない事実）
-//   belief[j]     i が j の速さをどう見積もっているか（最初は一般常識から）
+//   belief[j]     i が j の速さをどう見積もっているか（最初は一般常識から）。belief[i] は自分の見積もり
 //   policy        その人の決めごと。人が決めても AI が決めてもよい
 //     adapt       見積もりでいちばん遅い人に、自分の歩みをどれだけ合わせるか（0〜1）
 //     observe     実際の歩きぶりを見て、見積もりとのずれに気づくか
@@ -11,17 +11,20 @@
 //     metacog     自分の見積もりや変化を自覚しているか。していなければ内心の言葉は出ない
 //     voice       自覚したことをどう扱うか。share＝気づいた事実を伝える、declare＝方針だけ言う、hide＝内心にとどめる
 //     trust       人から聞いた話を、どれだけ見積もりに取り込むか（0〜1）
+//     stereo      思い込みの強さ。自分の見積もりに、実際の歩みがどれだけ引っ張られるか（0〜1）
+//     selfLearn   自分を知る。歩いている体の手応えから、自分の見積もりをどれだけ直すか（0〜1）
+//     depend      人の見方に左右される。人が自分をどう見ているかを、自分の見積もりにどれだけ取り込むか（0〜1）
 //
 // 速さはすべて、一行の標準の速さ PACE に対する比で表す。
 
 export const COMMON = { elder: 0.6, adult: 1.0 };
 
 export const MINDS = {
-  toru:  { kind: 'adult', ability: 1.0,  policy: { adapt: 0.9, observe: true,  learn: 0.4, metacog: true,  voice: 'declare', trust: 0.5 } },
-  akari: { kind: 'adult', ability: 1.05, policy: { adapt: 0,   observe: true,  learn: 0.6, metacog: true,  voice: 'hide',    trust: 0.3 } },
-  fumio: { kind: 'elder', ability: 0.92, policy: { adapt: 0.2, observe: true,  learn: 0,   metacog: true,  voice: 'share',   trust: 0.5 } },
-  yuma:  { kind: 'adult', ability: 1.1,  policy: { adapt: 0.3, observe: false, learn: 0,   metacog: false, voice: 'share',   trust: 0.8 } },
-  nagi:  { kind: 'adult', ability: 0.95, policy: { adapt: 0.7, observe: true,  learn: 0.3, metacog: false, voice: 'hide',    trust: 0.2 } },
+  toru:  { kind: 'adult', ability: 1.0,  policy: { adapt: 0.9, observe: true,  learn: 0.4, metacog: true,  voice: 'declare', trust: 0.5, stereo: 0.5, selfLearn: 0.3,  depend: 0.2 } },
+  akari: { kind: 'adult', ability: 1.05, policy: { adapt: 0,   observe: true,  learn: 0.6, metacog: true,  voice: 'hide',    trust: 0.3, stereo: 0.5, selfLearn: 0.3,  depend: 0.5 } },
+  fumio: { kind: 'elder', ability: 0.92, policy: { adapt: 0.2, observe: true,  learn: 0,   metacog: true,  voice: 'share',   trust: 0.5, stereo: 0.8, selfLearn: 0.25, depend: 0.7 } },
+  yuma:  { kind: 'adult', ability: 1.1,  policy: { adapt: 0.3, observe: false, learn: 0,   metacog: false, voice: 'share',   trust: 0.8, stereo: 0.3, selfLearn: 0.5,  depend: 0.1 } },
+  nagi:  { kind: 'adult', ability: 0.95, policy: { adapt: 0.7, observe: true,  learn: 0.3, metacog: false, voice: 'hide',    trust: 0.2, stereo: 0.6, selfLearn: 0.1,  depend: 0.8 } },
 };
 
 const KIND_JA = { elder: 'お年寄り', adult: '大人' };
@@ -38,7 +41,7 @@ export function createMinds(people, { leader = 0, policies = {} } = {}) {
       belief: people.map((q) => COMMON[MINDS[q.id].kind]),
       seen: people.map(() => ({ sum: 0, n: 0, avg: null })),
       noticed: new Set(),
-      pace: null, saidSelf: false,
+      pace: null, saidSelf: false, selfStart: COMMON[m.kind], selfNoticed: false,
     };
   });
 
@@ -55,7 +58,11 @@ export function createMinds(people, { leader = 0, policies = {} } = {}) {
       if (!slow) return;
       const v = m.belief[slow.i];
       if (m.policy.metacog) emit(t, m, 'inner', `${slow.first}さんは${KIND_JA[slow.kind]}だから、ゆっくりだろう`, { about: slow.i, belief: v });
-      if (m.policy.metacog && m.policy.voice === 'declare' && m.policy.adapt > 0.5) emit(t, m, 'say', `${slow.first}さんに合わせて、ゆっくり行こう`);
+      // 方針を言うと、言った人の見積もりも一緒に伝わる
+      if (m.policy.metacog && m.policy.voice === 'declare' && m.policy.adapt > 0.5) say(t, m, `${slow.first}さんに合わせて、ゆっくり行こう`, { about: slow.i, value: v });
+    });
+    minds.forEach((m) => {
+      if (m.policy.metacog && m.belief[m.i] < 0.9 && m.policy.stereo > 0.5) emit(t, m, 'inner', '僕は年だから、みんなより遅い', { about: m.i, belief: m.belief[m.i] });
     });
   }
 
@@ -66,13 +73,19 @@ export function createMinds(people, { leader = 0, policies = {} } = {}) {
     return best && m.belief[best.i] < 0.98 ? best : null;
   }
 
-  // m が出したい速さ：自分の力と、いちばん遅いと思う人の見積もりを、adapt の割合で混ぜる
+  // 自分で出せると思っている速さ：実際の力と自分の見積もりを、思い込みの強さで混ぜる（力より速くは歩けない）
+  function ownPace(m) {
+    const st = m.policy.stereo;
+    return (1 - st) * m.ability + st * Math.min(m.ability, m.belief[m.i]);
+  }
+
+  // m が出したい速さ：自分で出せる速さと、いちばん遅いと思う人の見積もりを、adapt の割合で混ぜる
   function pace(i) {
-    const m = minds[i];
+    const m = minds[i], own = ownPace(m);
     let slow = Infinity;
     minds.forEach((o) => { if (o !== m) slow = Math.min(slow, m.belief[o.i]); });
     const a = m.policy.adapt;
-    return Math.min(m.ability, (1 - a) * m.ability + a * slow);
+    return Math.min(own, (1 - a) * own + a * slow);
   }
 
   // 誰を見ているか：遅いと思っている人がいればその人、いなければ歩みを決めている先頭
@@ -105,6 +118,9 @@ export function createMinds(people, { leader = 0, policies = {} } = {}) {
           if (m.policy.learn > 0) m.belief[o.i] += m.policy.learn * gap * 0.5;
         }
       }
+      // 自分を知る：歩いている体の手応えで、自分の見積もりが実際の力に寄っていく
+      if (moving[m.i] && m.policy.selfLearn > 0) m.belief[m.i] += m.policy.selfLearn * 0.25 * (m.ability - m.belief[m.i]);
+      noticeSelf(t, m);
       // 歩みの調整：前に出した速さから目に見えて変わったら、行動として記録する
       const p = pace(m.i);
       if (m.pace === null) m.pace = p;
@@ -121,9 +137,9 @@ export function createMinds(people, { leader = 0, policies = {} } = {}) {
     const faster = gap > 0;
     const meta = m.policy.metacog;
     // 合わせてもらっている側：周りが自分の力より遅いと気づく
-    if (o.i === leader && !faster && slowest(o) === m && m.seen[o.i].avg < m.ability - 0.1) {
+    if (o.i === leader && !faster && slowest(o) === m && m.seen[o.i].avg < ownPace(m) - 0.1) {
       if (meta) emit(t, m, 'inner', `みんな僕に合わせてくれている。本当はもう少し歩ける`);
-      if (meta && m.policy.voice === 'share' && !m.saidSelf) { m.saidSelf = true; say(t, m, '合わせなくて大丈夫。僕はまだ歩けるよ', { about: m.i, value: m.ability }); }
+      if (meta && m.policy.voice === 'share' && !m.saidSelf) { m.saidSelf = true; say(t, m, '合わせなくて大丈夫。僕はまだ歩けるよ', { about: m.i, value: m.belief[m.i] }); }
       else if (meta && m.policy.voice === 'declare') say(t, m, '先に行っていいよ');
       else if (meta) emit(t, m, 'inner', '（言わないでおこう）');
       return;
@@ -137,19 +153,35 @@ export function createMinds(people, { leader = 0, policies = {} } = {}) {
     else emit(t, m, 'inner', '（言わないでおこう）');
   }
 
-  // 発話：聞いた人は trust の割合で見積もりを動かす
+  // 自分の見積もりが、歩き出したときから目に見えて変わったことに気づく
+  function noticeSelf(t, m) {
+    const d = m.belief[m.i] - m.selfStart;
+    if (m.selfNoticed || Math.abs(d) < 0.15) return;
+    m.selfNoticed = true;
+    const up = d > 0;
+    if (!m.policy.metacog) { emit(t, m, 'act', `自分の見積もり ${fmt(m.selfStart)} → ${fmt(m.belief[m.i])}`, { aware: false, short: up ? '足が軽くなる' : '足が重くなる' }); return; }
+    emit(t, m, 'inner', up ? '思ったより歩ける。まだ足が軽い' : 'やっぱり僕は遅いのかな', { about: m.i, belief: m.belief[m.i] });
+    if (m.saidSelf) return; // もう伝えてある
+    if (m.policy.voice === 'share' && up) { m.saidSelf = true; say(t, m, '思ったより歩けるよ。合わせなくて大丈夫', { about: m.i, value: m.belief[m.i] }); }
+    else if (m.policy.voice === 'declare' && up) say(t, m, '少し速く行っても大丈夫');
+    else emit(t, m, 'inner', '（言わないでおこう）');
+  }
+
+  // 発話：聞いた人は trust の割合で見積もりを動かす。自分のことを言われたら、depend の割合で自分の見積もりを動かす
   function say(t, m, text, claim) {
     emit(t, m, 'say', text);
     if (!claim) return;
     minds.forEach((o) => {
-      if (o === m || o.policy.trust <= 0) return;
+      const w = claim.about === o.i ? o.policy.depend : o.policy.trust;
+      if (o === m || w <= 0) return;
       const before = o.belief[claim.about];
-      o.belief[claim.about] += o.policy.trust * (claim.value - before);
+      o.belief[claim.about] += w * (claim.value - before);
+      if (Math.abs(o.belief[claim.about] - before) < 0.01) return; // 見積もりが動かなければ、聞き流したことにする
       const whom = claim.about === o.i ? '自分' : minds[claim.about].first + 'さん';
       if (o.policy.metacog) emit(t, o, 'hear', `${m.first}さんの話で、${whom}の見積もり ${fmt(before)} → ${fmt(o.belief[claim.about])}`, { short: 'そうなんだ' });
       else emit(t, o, 'act', `${m.first}さんの話を聞いて、${whom}の見積もり ${fmt(before)} → ${fmt(o.belief[claim.about])}`, { aware: false, short: '見積もりが動いた' });
     });
   }
 
-  return { minds, log, start, tick, pace, watching, onLog: (f) => listeners.push(f) };
+  return { minds, log, start, tick, pace, ownPace, watching, onLog: (f) => listeners.push(f) };
 }

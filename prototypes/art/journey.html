@@ -90,7 +90,9 @@
   .gauge i { position: absolute; top: 0; bottom: 0; left: 0; background: var(--ink); }
   .gauge s { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--shu); }
   .gauge u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #7FA05E; }
-  .pol { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 3px 8px; align-items: center; }
+  .pol { display: grid; grid-template-columns: max-content 1fr; gap: 0 10px; align-items: center; }
+  .pol input[type=range] { height: 16px; margin: 0; }
+  .pol input[type=checkbox] { justify-self: start; margin: 2px 0; }
   .pol select { font: inherit; font-size: 11px; max-width: 100%; }
   .pol label { color: var(--soft); }
   .pol input[type=range] { width: 100%; }
@@ -297,7 +299,9 @@ j.minds.minds.forEach((m) => {
   const box = document.createElement('div');
   box.className = 'mind';
   box.innerHTML = `<div class="head"><b>${m.name}</b><span class="watch"></span></div>
-    <div class="gauge"><i></i><s></s><u></u></div>
+    <div class="gauge other"><i></i><s></s><u></u></div>
+    <div class="head"><span>自分の速さ</span></div>
+    <div class="gauge self"><i></i><s></s><u></u></div>
     <div class="pol">
       <label>合わせる</label><input type="range" min="0" max="1" step="0.1" data-p="adapt">
       <label>観察する</label><input type="checkbox" data-p="observe">
@@ -305,6 +309,9 @@ j.minds.minds.forEach((m) => {
       <label>自覚する</label><input type="checkbox" data-p="metacog">
       <label>言うか</label><select data-p="voice">${Object.entries(VOICE).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
       <label>人の話を信じる</label><input type="range" min="0" max="1" step="0.1" data-p="trust">
+      <label>思い込みの強さ</label><input type="range" min="0" max="1" step="0.1" data-p="stereo">
+      <label>自分を知る</label><input type="range" min="0" max="1" step="0.1" data-p="selfLearn">
+      <label>人の見方に左右される</label><input type="range" min="0" max="1" step="0.1" data-p="depend">
     </div>`;
   box.querySelectorAll('[data-p]').forEach((inp) => {
     const k = inp.dataset.p;
@@ -323,7 +330,12 @@ function drawMinds() {
   j.minds.minds.forEach((m) => {
     const o = j.minds.watching(m);
     m.el.querySelector('.watch').textContent = o ? `${o.first}さんを見ている` : '誰も気にかけていない';
-    const g = m.el.querySelector('.gauge');
+    const me = m.el.querySelector('.gauge.self');
+    me.querySelector('i').style.width = scale(m.belief[m.i]);
+    me.querySelector('s').style.left = scale(COMMON[m.kind]);
+    me.querySelector('u').style.left = scale(m.ability);
+    me.title = `自分の速さ　見積もり ${m.belief[m.i].toFixed(2)}／一般常識 ${COMMON[m.kind]}／実際 ${m.ability}`;
+    const g = m.el.querySelector('.gauge.other');
     g.style.visibility = o ? 'visible' : 'hidden';
     if (!o) return;
     g.querySelector('i').style.width = scale(m.belief[o.i]);
