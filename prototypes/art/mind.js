@@ -23,6 +23,15 @@
 //   話しかける    自分の目的に関わる話をする。返事があるかで近さが変わる
 //   急ぎたい      一行の目的に乗りきれていない人が、先頭の歩みに不満を持つ。言うか飲み込むかは方針しだい
 //
+// 内側の状態（本人にも周りにも、数値としては見えない）
+//   inner.vision     見える範囲。弱いと道の筋からそれても気づくのが遅れ、近くのものしか目に入らない
+//   inner.reminisce  目に入ったものから思い出に引かれる強さ。強いと立ち止まって見入る
+//   inner.will       前へ進む気持ち。弱いと歩みが落ち、来た道を振り返る
+//
+// 思い（muse）：目に入ったもの・思い出・目的から、数秒おきにとりとめなく浮かぶ考え。
+//   depth（0〜3）で出す深さを決める。0 は出さない、1 は見えたもの、2 は思い出と現実逃避、
+//   3 は生きる気持ちが薄れた考えまで。授業では教える人が決める
+//
 // 一行の目的と、一人ひとりの目的
 //   PARTY_GOAL    一行が目指すこと
 //   goal          その人自身の目的
@@ -54,6 +63,43 @@ const TOPICS = {
   nagi: ['この道はどこまで続くんですか'],
 };
 const WARM = ['いいですね', 'そうですね', 'うん楽しみ', 'ほんとに'];
+
+// 内側の状態の幅。旅ごとにこの中から決まる
+const INNER = {
+  fumio: { vision: [0.15, 0.55], reminisce: [0.5, 0.95], will: [0.15, 0.6] },
+  other: { vision: [0.8, 1], reminisce: [0.1, 0.4], will: [0.6, 0.95] },
+};
+
+// 思いの種。[深さ, 文] の組。目に入ったもの（tag）ごと、人ごとに持つ
+const MUSE = {
+  fumio: {
+    road: [[1, '道の端がよく見えない。足もとの色が溶けている'], [1, '前を歩く背中がぼやけて見える']],
+    tree: [[1, 'この木はもっと低かった気がする'], [2, '妻はこういう木の下で弁当を広げるのが好きだった'], [2, '子どものころ、この先の林で迷ったことがある']],
+    rock: [[1, '道ばたの石に腰をおろしたくなる'], [2, '父はこんな石を積んで畑の境にしていた']],
+    river: [[1, '水の音だけはよく聞こえる'], [2, 'この川で孫と釣りをした。あの子は魚より石を集めていた']],
+    behind: [[1, '振り返ってももう屋根は見えない'], [2, '町の時計は誰が止めるんだろう'], [3, '町と一緒に沈むのも悪くなかった']],
+    free: [[2, '船に乗ったら、もう戻れない'], [2, '孫に会えたら何を話そう。話すことが思いつかない'], [3, 'このまま歩くのをやめたら、誰か困るだろうか'], [3, '港に着かなくてもいい気がしてきた']],
+    toru: [[2, '透くんは父親に似てきた']], akari: [[2, '灯さんは急いでいる。若いうちはそれでいい']],
+    yuma: [[2, '由真さんのカメラに、町はどう写っているんだろう']], nagi: [[2, 'あの子は昔の自分に似ている']],
+  },
+  toru: {
+    road: [[1, 'あと何日で港に着くか数え直す']], river: [[1, '橋は無事だろうか']],
+    free: [[1, '全員を乗せる。それだけ考えればいい'], [2, '父ならこういうときどうしただろう']],
+    fumio: [[1, '文雄さん、また止まっている。足が痛むのかな']],
+  },
+  akari: {
+    road: [[1, '急げば一日早く着ける']], free: [[2, '子どもたちは港で泣いていないだろうか'], [2, '先に一人で行けたら楽なのに']],
+    fumio: [[1, '文雄さんに合わせていたら船に遅れる']],
+  },
+  yuma: {
+    tree: [[1, 'この光は撮っておきたい']], river: [[1, '川の色が町の写真と同じだ']], rock: [[1, '石の苔がきれいだ']],
+    free: [[2, '写真に残せば、沈んでも町はある']], nagi: [[1, 'ナギさんも写してあげたい']],
+  },
+  nagi: {
+    road: [[1, '道はどこまで続くんだろう']], free: [[2, 'この人たちは私をどこまで連れて行くんだろう'], [2, '行き先がある人はいいな']],
+    fumio: [[1, '文雄さんは時々遠くを見ている']],
+  },
+};
 // 実際の力の幅：一般常識が当たる旅も、外れる旅もある
 const ABILITY_RANGE = { elder: [0.5, 1.0], adult: [0.88, 1.15] };
 const VOICES = ['share', 'declare', 'hide'];
@@ -93,6 +139,8 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       pace: null, saidSelf: false, selfStart: COMMON[m.kind], selfNoticed: false,
       affinity: people.map((q) => (q.id === 'nagi' || p.id === 'nagi' ? 0.2 : 0.3) + r() * 0.35),
       intent: null, rushed: false, cool: people.map(() => 0), easeUntil: 0,
+      inner: Object.fromEntries(Object.entries(INNER[p.id] || INNER.other).map(([k, [lo, hi]]) => [k, round1(lo + r() * (hi - lo))])),
+      nextMuse: 2 + r() * 5, mused: new Set(), attrCool: 0, why: {},
     };
   });
 
@@ -154,7 +202,7 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
   let acc = 0;
   let leadPace = null; // 先頭の歩みは、誰の目にも入る
   let now = 0;
-  function tick(t, dt, speeds, moving, behind = [], acts = []) {
+  function tick(t, dt, speeds, moving, behind = [], acts = [], percepts = []) {
     now = t;
     if (moving[leader]) leadPace = leadPace === null ? speeds[leader] : leadPace + (speeds[leader] - leadPace) * Math.min(1, dt);
     minds.forEach((m) => {
@@ -191,6 +239,60 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       }
     });
     interact(t, behind, acts);
+    attribute(t, acts);
+    minds.forEach((m) => { if (t >= m.nextMuse) { muse(t, m, percepts[m.i]); m.nextMuse = t + museGap(m); } });
+  }
+
+  // ---------- 思い ----------
+  let depth = 2;
+  // 思いの種から、まだ浮かべていない文を選ぶ。tag が無ければ、そばの人や目的についての思いにする
+  function pick(m, tags) {
+    const bank = MUSE[m.id] || {};
+    for (const tag of tags) {
+      const list = (bank[tag] || []).filter(([d, text]) => d <= depth && !m.mused.has(text));
+      if (list.length) return list[Math.floor(r() * list.length)][1];
+    }
+    return null;
+  }
+  // 思い出に引かれやすい人ほど、思いが次々に浮かぶ
+  const museGap = (m) => (3 + r() * 4) * (1.4 - m.inner.reminisce);
+  function muse(t, m, tag) {
+    if (depth === 0) return;
+    const others = minds.filter((o) => o !== m).map((o) => o.id);
+    const tags = [tag, ...(r() < 0.4 ? others.sort(() => r() - 0.5) : []), 'free', 'road'].filter(Boolean);
+    let text = pick(m, tags);
+    if (!text) return;
+    m.mused.add(text);
+    // 深さ 2 以上では、見えたものから目的や思い出へ考えが流れていくことがある
+    if (depth >= 2 && r() < 0.4) {
+      const next = pick(m, ['free']);
+      if (next) { m.mused.add(next); text += '。' + next; }
+    }
+    emit(t, m, 'muse', text);
+  }
+  // 立ち止まって何かに見入ったとき・振り返ったとき（journey.js から呼ぶ）
+  function linger(i, tag, t) {
+    const m = minds[i];
+    m.lingerAt = t;
+    if (depth === 0) return;
+    const text = pick(m, [tag, 'free']);
+    if (text) { m.mused.add(text); emit(t, m, 'muse', text); m.nextMuse = t + museGap(m); }
+  }
+
+  // 周りの解釈：立ち止まった人を見て、一般常識から理由を当てはめる（本当の理由は内側にあって見えない）
+  function attribute(t, acts) {
+    minds.forEach((m) => {
+      const o = watching(m);
+      if (!o || acts[o.i] !== 'linger' || t < m.attrCool || !m.policy.observe) return;
+      m.attrCool = t + 8;
+      if (m.why[o.i] === 'memory') {
+        if (m.policy.metacog) emit(t, m, 'inner', `${o.first}さん、また昔を思い出しているのかな`, { about: o.i });
+      } else if (m.belief[o.i] < 0.85) {
+        if (m.policy.metacog) emit(t, m, 'inner', `${o.first}さんまた止まった。やっぱり足が弱いのかな`, { about: o.i });
+        else emit(t, m, 'act', `${o.first}さんの見積もりが下がる`, { aware: false, short: '見積もりが下がる' });
+        m.belief[o.i] = Math.max(0.3, m.belief[o.i] - 0.05);
+      } else if (m.policy.metacog) emit(t, m, 'inner', `${o.first}さん、何を見ているんだろう`, { about: o.i });
+    });
   }
 
   // ---------- 人どうしのやりとり ----------
@@ -207,7 +309,7 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     // 声をかける：遅れている人、休んでいる人
     minds.forEach((o) => {
       if (done || o.i === leader) return;
-      const lagging = (behind[o.i] ?? 0) > 1.8 || acts[o.i] === 'rest' || acts[o.i] === 'pause';
+      const lagging = (behind[o.i] ?? 0) > 1.8 || acts[o.i] === 'rest' || acts[o.i] === 'pause' || acts[o.i] === 'linger';
       if (!lagging || t < o.cool[o.i] || busy(o, t)) return;
       let helper = null, best = -1;
       minds.forEach((m) => {
@@ -217,7 +319,7 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       });
       if (!helper) return;
       o.cool[o.i] = t + 10;
-      checkIn(t, helper, o);
+      checkIn(t, helper, o, acts[o.i] === 'linger');
       done = true;
     });
     // 話しかける
@@ -232,13 +334,19 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     });
   }
 
-  function checkIn(t, m, o) {
+  // lingering：疲れではなく、何かに見入ったり振り返ったりして止まっていた
+  function checkIn(t, m, o, lingering = false) {
     say(t, m, `${o.first}さん、大丈夫？`);
     let worried = false;
     if (!o.policy.metacog) say(t, o, 'うん');
-    else if (o.policy.voice === 'share') { say(t, o, '少し休みたい'); worried = true; }
+    else if (o.policy.voice === 'share') {
+      say(t, o, lingering ? 'ちょっと昔を思い出していた' : '少し休みたい');
+      worried = !lingering;
+      // 本人の言葉を信じた人は、立ち止まる理由を足のせいにしなくなる
+      if (lingering) minds.forEach((q) => { if (q !== o && q.policy.trust >= 0.3) q.why[o.i] = 'memory'; });
+    }
     else if (o.policy.voice === 'declare') say(t, o, '先に行っていいよ');
-    else { say(t, o, '大丈夫'); emit(t, o, 'inner', '本当は少し疲れている'); }
+    else { say(t, o, '大丈夫'); emit(t, o, 'inner', lingering ? '本当は昔のことを考えていた' : '本当は少し疲れている'); }
     // 言葉と見た目のずれ：観察する人は、遅れていることを自分の目でも見ている
     if (!worried && m.policy.observe) {
       worried = true;
@@ -341,5 +449,5 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
   }
 
   const intent = (i, t) => (busy(minds[i], t) ? minds[i].intent : null);
-  return { minds, log, start, tick, pace, ownPace, watching, intent, onLog: (f) => listeners.push(f) };
+  return { minds, log, start, tick, pace, ownPace, watching, intent, linger, setDepth: (d) => { depth = d; }, getDepth: () => depth, onLog: (f) => listeners.push(f) };
 }

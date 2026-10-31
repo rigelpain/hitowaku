@@ -93,10 +93,13 @@
   .side .note { color: var(--soft); padding: 0 12px 8px; }
   .toggles button { font: inherit; font-size: 12px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; color: var(--soft); padding: 3px 8px; border-radius: 2px; cursor: pointer; }
   .toggles button[aria-pressed="true"] { background: rgba(30, 27, 34, 0.1); color: var(--ink); border-color: rgba(30, 27, 34, 0.5); }
-  .float { position: fixed; transform: translate(-50%, -100%); max-width: 11em; white-space: nowrap; font-size: 13px; line-height: 1.5; padding: 3px 8px; pointer-events: none; white-space: normal; }
+  .float { position: fixed; max-width: 11em; white-space: nowrap; font-size: 13px; line-height: 1.5; padding: 3px 8px; pointer-events: none; white-space: normal; }
+  .float b { font-weight: 500; font-size: 10px; color: var(--soft); margin-right: 6px; font-family: system-ui, -apple-system, 'Hiragino Sans', sans-serif; }
   .float.say { background: var(--panel); box-shadow: var(--lift); white-space: normal; width: max-content; }
   .float.inner { color: #3B3833; background: rgba(237, 230, 211, 0.6); border: 1px dashed rgba(30, 27, 34, 0.45); }
   .float.act { color: var(--shu); background: rgba(237, 230, 211, 0.6); font-size: 12px; }
+  .float.muse { color: #4A463F; background: rgba(237, 230, 211, 0.75); font-size: 12px; max-width: 14em; white-space: normal; width: max-content; }
+  body:not(.show-inner) .float.muse,
   body:not(.show-inner) .float.inner, body:not(.show-inner) .float.act, body:not(.show-talk) .float.say { display: none; }
   .side { position: fixed; z-index: 5; right: 12px; width: min(340px, calc(100vw - 24px)); background: var(--panel); box-shadow: var(--lift); font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; font-size: 12px; display: none; }
   .side h4 { margin: 0; padding: 8px 12px 6px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
@@ -109,6 +112,9 @@
   #log .k { color: var(--soft); }
   #log .say .x { font-weight: 600; }
   #log .act .x { color: var(--shu); }
+  #log .muse .x { color: #4A463F; }
+  .depth button[aria-pressed="true"] { background: rgba(30, 27, 34, 0.1); border-color: rgba(30, 27, 34, 0.5); }
+  .menu .hint { margin: 4px 0 0; font-size: 11px; line-height: 1.5; }
   #log .unaware .x::after { content: ' 自覚なし'; color: var(--soft); font-size: 11px; }
   .side h4 button { font: inherit; font-size: 12px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; padding: 2px 8px; border-radius: 2px; cursor: pointer; }
   #mindPanel { top: 56px; max-height: calc(100vh - 140px - 34vh); overflow-y: auto; }
@@ -135,7 +141,7 @@
 <body>
 <canvas id="c"></canvas>
 <div class="card" id="card"><h2>橋が落ちている</h2><dl class="facts"><div><dt>Boat</dt><dd>1</dd></div><div><dt>Seats</dt><dd>4 + cart</dd></div><div><dt>Trips</dt><dd>1</dd></div></dl><p class="outcome">一人はこの岸に残る</p></div>
-<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Ship in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>多数決</b><div class="tally" id="tally"></div></div><div class="opts" id="opts"><button id="optBtn" aria-expanded="false">Options</button><div class="menu"><p>Show</p><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div><p>Journey <span id="seedLabel"></span></p><div class="row"><button id="about">About</button><button id="newJourney">New journey</button></div></div></div></div>
+<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Ship in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>多数決</b><div class="tally" id="tally"></div></div><div class="opts" id="opts"><button id="optBtn" aria-expanded="false">Options</button><div class="menu"><p>Show</p><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div><p>Depth</p><div class="row depth" id="depth"><button data-d="0">0</button><button data-d="1">1</button><button data-d="2">2</button><button data-d="3">3</button></div><p class="hint" id="depthHint"></p><p>Journey <span id="seedLabel"></span></p><div class="row"><button id="about">About</button><button id="newJourney">New journey</button></div></div></div></div>
 <section class="side" id="mindPanel"><h4>Minds<span><button id="toAuto">Back to AI</button> <button id="restart">Restart</button></span></h4><p class="note">ふだんは AI が旅ごとに決めます。動かした値は、あなたの決めた値として次のやり直しにも残ります。</p><div class="legend"><span><i style="background:var(--ink)"></i>見積もり</span><span><i style="background:var(--shu)"></i>一般常識</span><span><i style="background:#7FA05E"></i>実際</span></div><div id="minds"></div></section>
 <section class="side" id="logPanel"><h4>Log</h4><div id="log"></div></section>
 <section class="intro" id="nogl"><div>
@@ -194,12 +200,25 @@ const ui = {
         c.style.marginRight = so ? `${so * 1.5}px` : '0';
       });
     });
-    floats.forEach((fl, who) => {
-      if (!fl) return;
-      if (state.t > fl.until) { fl.el.remove(); floats[who] = null; return; }
+    // 頭の上の表示：画面の内側に収め、重なるときは上へずらす（下にある人の表示から順に置く）
+    const placed = bubbles.filter((b) => b.el.classList.contains('show')).map((b) => b.el.getBoundingClientRect());
+    floats.map((fl, who) => {
+      if (!fl) return null;
+      if (state.t > fl.until) { fl.el.remove(); floats[who] = null; return null; }
       const f = figures[who];
       const [x, y] = toScreen(f.position.clone().setY(f.position.y + 1.15));
-      fl.el.style.left = x + 'px'; fl.el.style.top = Math.max(hudBottom + 30, y) + 'px';
+      return { fl, x, y, w: fl.el.offsetWidth, h: fl.el.offsetHeight };
+    }).filter(Boolean).sort((a, b) => b.y - a.y).forEach((p) => {
+      const left = Math.max(8, Math.min(innerWidth - p.w - 8, p.x - p.w / 2));
+      let top = p.y - p.h;
+      for (let k = 0; k < 12; k++) {
+        const hit = placed.find((r) => left < r.right + 4 && left + p.w > r.left - 4 && top < r.bottom + 3 && top + p.h > r.top - 3);
+        if (!hit) break;
+        top = hit.top - p.h - 4;
+      }
+      top = Math.max(hudBottom + 8, top);
+      p.fl.el.style.left = left + 'px'; p.fl.el.style.top = top + 'px';
+      placed.push({ left, right: left + p.w, top, bottom: top + p.h });
     });
     votes.forEach((v) => {
       const f = figures[v.i];
@@ -313,7 +332,7 @@ function step(dt) {
 events.sort((a, b) => a[0] - b[0]);
 
 // ---------- 頭の中の表示 ----------
-const KIND = { inner: '内心', say: '発話', hear: '聞いた', act: '行動' };
+const KIND = { inner: '内心', say: '発話', hear: '聞いた', act: '行動', muse: '思い' };
 const show = { inner: true, talk: true, log: false, minds: false };
 try { Object.assign(show, JSON.parse(localStorage.getItem('hitowaku-show') || '{}')); } catch {}
 function applyShow() {
@@ -333,14 +352,16 @@ applyShow();
 
 // 頭の上の短い表示：内心は点線の枠、発話は紙の地、自覚のない変化は朱の小さな字
 function float(e) {
-  const cls = e.kind === 'say' ? 'say' : e.kind === 'act' ? 'act' : 'inner';
+  const cls = e.kind === 'say' ? 'say' : e.kind === 'act' ? 'act' : e.kind === 'muse' ? 'muse' : 'inner';
   if (e.kind === 'act' && e.aware !== false) return;
   floats[e.who]?.el.remove();
   const el = document.createElement('div');
   el.className = 'float ' + cls;
-  el.textContent = e.short ?? e.text;
+  // ずらして置くこともあるので、誰の表示かを頭に小さく添える
+  const who = document.createElement('b'); who.textContent = e.name.split(' ').pop();
+  el.append(who, e.short ?? e.text);
   document.body.appendChild(el);
-  floats[e.who] = { el, until: j.state.t + (cls === 'say' ? 3.2 : 2.6) };
+  floats[e.who] = { el, until: j.state.t + (cls === 'say' ? 3.2 : cls === 'muse' ? 3.6 : 2.6) };
 }
 const logEl = $('log');
 function addLog(e) {
@@ -406,6 +427,19 @@ $('optBtn').addEventListener('click', (e) => {
 });
 addEventListener('click', (e) => { if (!opts.contains(e.target)) { opts.classList.remove('open'); $('optBtn').setAttribute('aria-expanded', 'false'); } });
 $('seedLabel').textContent = '#' + seed;
+
+// 思いの深さ。3 は生きる気持ちが薄れた考えまで出すので、授業では教える人が決める
+const DEPTH_HINT = ['思いは出さない', '見えたものについての思い', '思い出や、現実から目をそらす思いまで', '生きる気持ちが薄れた思いまで。授業では教える人が決める'];
+let depth = 2;
+try { depth = Number(localStorage.getItem('hitowaku-depth') ?? 2); } catch {}
+function applyDepth() {
+  j.minds.setDepth(depth);
+  document.querySelectorAll('#depth button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.d) === depth)));
+  $('depthHint').textContent = DEPTH_HINT[depth];
+  try { localStorage.setItem('hitowaku-depth', String(depth)); } catch {}
+}
+document.querySelectorAll('#depth button').forEach((b) => b.addEventListener('click', () => { depth = Number(b.dataset.d); applyDepth(); }));
+applyDepth();
 
 // 旅の前の説明：世界、一行の目的、一人ひとりの目的と、一行の目的に乗る度合い
 $('partyGoal').textContent = PARTY_GOAL;

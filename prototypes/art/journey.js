@@ -12,12 +12,12 @@ const MOOD0 = { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 };
 // ---------- 歩き方 ----------
 // 一行の進む速さ。人はそれぞれの性格で、この速さのまわりを行ったり来たりする。
 const PACE = 1.4;
-// kind：行き先と速さの選び方。stride：歩幅。swing：腕の振り。lean：前かがみ。bounce：上下動。
+// kind：行き先と速さの選び方（drift は、目と心で道筋がぶれる歩き方）。stride：歩幅。swing：腕の振り。lean：前かがみ。bounce：上下動。
 // accel：速さの変わりやすさ。turn：曲がる速さ（小さいほど大回り）。lane：道の中での位置。spot：止まったときの立ち位置のずれ。
 const GAIT = {
   toru:  { kind: 'steady',   stride: 1.0,  swing: 0.8,  lean: 0.03,  bounce: 1.0, accel: 3,   turn: 4,   pace: 1.0, lane: -0.25, spot: [0, -0.45] },
   akari: { kind: 'hurry',    stride: 0.7,  swing: 0.35, lean: 0.12,  bounce: 1.4, accel: 6,   turn: 6,   pace: 1.3, lane: 0.3,   spot: [0.1, 0.5] },
-  fumio: { kind: 'slow',     stride: 0.6,  swing: 0.25, lean: 0.06,  bounce: 0.5, accel: 1.2, turn: 2,   pace: 0.8, lane: -0.2,  spot: [0.2, -0.6] },
+  fumio: { kind: 'drift',    stride: 0.6,  swing: 0.25, lean: 0.06,  bounce: 0.5, accel: 1.2, turn: 2,   pace: 0.8, lane: -0.2,  spot: [0.2, -0.6] },
   yuma:  { kind: 'wander',   stride: 1.15, swing: 1.25, lean: -0.04, bounce: 1.7, accel: 2.5, turn: 1.6, pace: 1.1, lane: 0,     spot: [-0.2, 1.2] },
   nagi:  { kind: 'hesitant', stride: 0.75, swing: 0.3,  lean: 0.07,  bounce: 0.7, accel: 2,   turn: 3,   pace: 0.9, lane: 0.5,   spot: [-0.9, 0.9] },
 };
@@ -89,10 +89,13 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
   const trunk = wood('#6E4A2E', 'y'), leaf = foliage('#4F7A44'), leaf2 = foliage('#6A8F4E'), rock = stone('#9A958A');
   const trunks = [], rocks = [], leaves = [[[], [], []], [[], [], []]];
   const yAxis = new THREE.Vector3(0, 1, 0);
+  // 目に入るもの：木・岩の位置。人はこれを見て、思い出したり立ち止まったりする
+  const landmarks = [];
   const plant = (x, z) => {
     if (x >= RIVER[0] - 1 && x <= RIVER[1] + 1) return;
     const y = heightAt(x, z) - 1;
     if (R() < 0.75) {
+      landmarks.push({ x, z, tag: 'tree' });
       trunks.push(m4.clone().compose(new THREE.Vector3(x, y + 0.35, z), new THREE.Quaternion(), new THREE.Vector3(0.25, 0.7, 0.25)));
       const set = leaves[R() < 0.5 ? 0 : 1];
       for (let k = 0; k < 3; k++) {
@@ -101,6 +104,7 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
       }
     } else {
       const s = 0.3 + R() * 0.2;
+      landmarks.push({ x, z, tag: 'rock' });
       rocks.push(m4.clone().compose(new THREE.Vector3(x, y + 0.2, z), new THREE.Quaternion(), new THREE.Vector3(s, s, s)));
     }
   };
@@ -184,6 +188,18 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
     if (g.kind === 'wander') { u.wz = 5 + (R() < 0.5 ? -1 : 1) * (1.6 + R()); u.timer = 2 + R(); }
   });
 
+  // いちばん近くの目に入るもの。視力が弱いほど、近くのものしか見えない
+  function percept(u, vision = 1) {
+    if (u.x > RIVER[0] - 5) return { tag: 'river', x: RIVER[0], z: u.z };
+    const reach = 1.2 + 3 * vision;
+    let best = null, bd = reach;
+    for (const l of landmarks) {
+      const d = Math.hypot(l.x - u.x, l.z - u.z);
+      if (d < bd) { bd = d; best = l; }
+    }
+    return best;
+  }
+
   // 一人分の行き先・速さ・向きを決めて、少し進める
   function steer(u, dt) {
     const g = u.gait, r = u.r, i = u.i;
@@ -207,16 +223,33 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
           if (u.timer < 0 && -behind < 0.3) u.act = 'go';
         }
         tz += Math.sin(state.t * 1.7 + i) * 0.15;
-      } else if (g.kind === 'slow') {
-        // 年寄り：ゆっくり。ときどき立ち止まって息をつく
-        if (u.act === 'rest') {
-          nod = 0.15;
-          if (u.timer < 0) { u.act = 'go'; u.timer = 2.5 + r() * 2.5; }
+      } else if (g.kind === 'drift') {
+        // 足腰ではなく、目と心で道筋がぶれる。足腰が弱い人なら最短の道を行こうとする
+        const inn = minds.minds[i].inner;
+        // 視力：道の筋から外れても、すぐには気づかない
+        u.drift = (u.drift ?? 0) + (r() - 0.5) * dt * 3 * (1 - inn.vision);
+        u.drift *= 1 - dt * inn.vision * 1.2;
+        tz += clamp(u.drift, -1.8, 1.8);
+        if (u.act === 'linger') {
+          // 見入る、振り返る
+          face = u.lingerFace; nod = u.lingerNod;
+          if (u.timer < 0) { u.act = 'go'; u.timer = 2 + r() * 3; }
         } else {
-          v = B * (1 + clamp(behind * 0.08, 0, 0.15));
-          if (u.timer < 0) { u.act = 'rest'; u.timer = 0.9 + r() * 0.8; }
+          // 前へ進む気持ちが弱いほど、歩みが落ちる
+          v = B * (0.8 + 0.3 * inn.will) * (1 + clamp(behind * 0.08, 0, 0.15));
+          if (u.timer < 0) {
+            const p = percept(u, inn.vision);
+            if (p && r() < inn.reminisce * 0.7) {
+              u.act = 'linger'; u.timer = 1.5 + r() * 2.5; u.lingerNod = 0;
+              u.lingerFace = Math.atan2(p.x - u.x, p.z - u.z);
+              minds.linger(i, p.tag, state.t);
+            } else if (r() < (1 - inn.will) * 0.6) {
+              u.act = 'linger'; u.timer = 1.2 + r() * 1.8; u.lingerNod = 0.1;
+              u.lingerFace = -Math.PI / 2; // 来た道（沈む町のほう）を振り返る
+              minds.linger(i, 'behind', state.t);
+            } else u.timer = 1.5 + r() * 2;
+          }
         }
-        tz += Math.sin(state.t * 0.9) * 0.12;
       } else if (g.kind === 'wander') {
         // 楽観・好奇心：道を外れて寄り道し、写真を撮り、置いていかれそうになると走って追いつく
         if (u.act === 'photo') {
@@ -288,7 +321,7 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
       if (!state.started) { state.started = true; minds.start(state.t); }
       // 一行の進みは先頭（透）の歩みで決まる
       state.caravanX += dt * PACE * minds.pace(0);
-      minds.tick(state.t, dt, figures.map((f) => f.userData.v / PACE), figures.map((f) => f.userData.v > 0.4), figures.map((f) => anchorX(f.userData.i) - f.userData.x), figures.map((f) => f.userData.act));
+      minds.tick(state.t, dt, figures.map((f) => f.userData.v / PACE), figures.map((f) => f.userData.v > 0.4), figures.map((f) => anchorX(f.userData.i) - f.userData.x), figures.map((f) => f.userData.act), figures.map((f) => percept(f.userData, minds.minds[f.userData.i].inner.vision)?.tag ?? null));
       if (state.caravanX >= state.arriveX) { state.walking = false; state.arrivedAt = state.t; }
     }
     figures.forEach((f) => {
