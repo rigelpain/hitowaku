@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { colorDither } from './post.js';
 import { RoundedBoxGeometry } from './vendor/addons/RoundedBoxGeometry.js';
 import { makePerson } from './person.js';
+import { createMinds } from './mind.js';
 import { ground, water as waterMat, wood, foliage, stone, cloth, shared } from './materials.js';
 
 const PALETTE = ['#EDE6D3', '#1E1B22', '#2C3E66', '#3F7A78', '#9DB08A', '#7FA05E', '#4F7A44', '#2F4A2C', '#D9A441', '#D6C094', '#9EC1CF', '#7A5236', '#4A3426', '#8C8A86', '#B9845A', '#E8CDB0', '#C2503A', '#7A5A98', '#4C7FB8', '#E0B13E', '#D4AE90'];
@@ -26,7 +27,7 @@ const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // ---------- 世界 ----------
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
-export function createJourney(canvas, ui, { seed = 7 } = {}) {
+export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
   const R = rng(seed);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
@@ -171,7 +172,8 @@ export function createJourney(canvas, ui, { seed = 7 } = {}) {
   const camFocus = new THREE.Vector3(4, 0, 5);
 
   // ---------- 状態 ----------
-  const state = { t: 0, mood: { ...MOOD0 }, moodTarget: { ...MOOD0 }, speaker: null, rain: 0, rainTarget: 0, boatX: boat.position.x, boatTarget: boat.position.x, walking: true, caravanX: 3 };
+  const minds = createMinds(PEOPLE, { policies });
+  const state = { arriveX: 34.24, arrivedAt: null, t: 0, mood: { ...MOOD0 }, moodTarget: { ...MOOD0 }, speaker: null, rain: 0, rainTarget: 0, boatX: boat.position.x, boatTarget: boat.position.x, walking: true, caravanX: 3 };
   const seat = (i) => figures[i].userData;
   const slot = (i) => i * 0.9 + (i > 1 ? 0.6 : 0);
   // 隊列の中のいつもの位置（歩く間の目安）と、立ち止まったときの立ち位置
@@ -188,15 +190,17 @@ export function createJourney(canvas, ui, { seed = 7 } = {}) {
     if (!u.placed) { u.x = anchorX(i); u.z = 5 + g.lane; u.placed = true; }
     u.timer -= dt;
     const behind = anchorX(i) - u.x; // 正なら列から遅れている
+    // B：この人が出したい速さ。自分の力と、遅いと思っている人への見積もりから mind.js が決める
+    const B = PACE * minds.pace(i);
     let tz = 5 + g.lane, v = 0, look = 0, nod = 0, face = null;
     if (state.walking) {
       if (g.kind === 'steady') {
         // 真面目：道の決まった筋を、ほぼ一定の速さで
-        v = PACE * (1 + clamp(behind * 0.25, -0.3, 0.3));
+        v = B * (1 + clamp(behind * 0.25, -0.3, 0.3));
       } else if (g.kind === 'hurry') {
         // 焦り：小走りで前に出ては、振り返って皆を待つ
         if (u.act === 'go') {
-          v = PACE * 1.7;
+          v = B * 1.7;
           if (-behind > 1.4) { u.act = 'wait'; u.timer = 0.7 + r() * 0.8; }
         } else {
           face = -Math.PI / 2;
@@ -209,7 +213,7 @@ export function createJourney(canvas, ui, { seed = 7 } = {}) {
           nod = 0.15;
           if (u.timer < 0) { u.act = 'go'; u.timer = 2.5 + r() * 2.5; }
         } else {
-          v = PACE * (0.8 + clamp(behind * 0.08, 0, 0.15));
+          v = B * (1 + clamp(behind * 0.08, 0, 0.15));
           if (u.timer < 0) { u.act = 'rest'; u.timer = 0.9 + r() * 0.8; }
         }
         tz += Math.sin(state.t * 0.9) * 0.12;
@@ -224,8 +228,8 @@ export function createJourney(canvas, ui, { seed = 7 } = {}) {
             else { u.wz = 5 + (r() < 0.5 ? -1 : 1) * (1 + r() * 2); u.timer = 1.5 + r() * 1.5; }
           }
           tz = u.wz ?? 5;
-          v = PACE * (0.9 + clamp(behind * 0.3, -0.4, 0.6));
-          if (behind > 2) { v = PACE * 2.1; tz = 5 + g.lane; }
+          v = B * (0.9 + clamp(behind * 0.3, -0.4, 0.6));
+          if (behind > 2) { v = B * 2.1; tz = 5 + g.lane; }
         }
       } else if (g.kind === 'hesitant') {
         // 遠慮がち：列の後ろの端を、速くなったり止まったりしながら
@@ -233,10 +237,11 @@ export function createJourney(canvas, ui, { seed = 7 } = {}) {
           nod = 0.25; look = -0.5;
           if (u.timer < 0) { u.act = 'go'; u.timer = 1.5 + r() * 2.5; }
         } else {
-          v = PACE * (0.75 + 0.5 * (0.5 + 0.5 * Math.sin(state.t * 1.3 + 2))) * (1 + clamp(behind * 0.3, -0.5, 0.5));
+          v = B * (0.75 + 0.5 * (0.5 + 0.5 * Math.sin(state.t * 1.3 + 2))) * (1 + clamp(behind * 0.3, -0.5, 0.5));
           if (u.timer < 0) { u.act = 'pause'; u.timer = 0.4 + r() * 0.7; }
         }
       }
+      if (g.kind !== 'hurry' && g.kind !== 'wander' && -behind > 0.6) v *= clamp(1 + (behind + 0.6) * 0.8, 0.2, 1);
     } else {
       // 立ち止まった：それぞれの立ち位置まで歩き、話している人のほうを向く
       if (u.spotX === undefined) { u.spotX = anchorX(i) + g.spot[0]; u.spotZ = 5 + g.spot[1]; u.act = 'go'; }
@@ -271,7 +276,13 @@ export function createJourney(canvas, ui, { seed = 7 } = {}) {
     state.t += dt;
     shared.time.value = state.t;
     const t = state.t;
-    if (state.walking) state.caravanX += dt * PACE;
+    if (state.walking) {
+      if (!state.started) { state.started = true; minds.start(state.t); }
+      // 一行の進みは先頭（透）の歩みで決まる
+      state.caravanX += dt * PACE * minds.pace(0);
+      minds.tick(state.t, dt, figures.map((f) => f.userData.v / PACE), figures.map((f) => f.userData.v > 0.4));
+      if (state.caravanX >= state.arriveX) { state.walking = false; state.arrivedAt = state.t; }
+    }
     figures.forEach((f) => {
       const u = f.userData;
       if (u.mode !== 'free') steer(u, dt);
@@ -324,5 +335,5 @@ export function createJourney(canvas, ui, { seed = 7 } = {}) {
     ui.frame?.(state, figures, toScreen);
   }
 
-  return { state, figures, update, toScreen, RIVER, seat, setCamX: (x) => { state.camX = x; } };
+  return { state, figures, minds, update, toScreen, RIVER, seat, setCamX: (x) => { state.camX = x; } };
 }

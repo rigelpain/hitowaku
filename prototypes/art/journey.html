@@ -58,6 +58,44 @@
     .card.docked { left: 16px; right: 16px; top: 88px; flex-wrap: wrap; }
     .ask { white-space: normal; flex-wrap: wrap; width: calc(100vw - 32px); box-sizing: border-box; }
   }
+
+  /* 頭の中の表示：内心・発話・ログ・方針。帯の右のボタンで出し入れする */
+  .toggles { display: flex; gap: 4px; }
+  .toggles button { font: inherit; font-size: 12px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; color: var(--soft); padding: 3px 8px; border-radius: 2px; cursor: pointer; }
+  .toggles button[aria-pressed="true"] { background: rgba(30, 27, 34, 0.1); color: var(--ink); border-color: rgba(30, 27, 34, 0.5); }
+  .float { position: fixed; transform: translate(-50%, -100%); max-width: 11em; white-space: nowrap; font-size: 13px; line-height: 1.5; padding: 3px 8px; pointer-events: none; white-space: normal; }
+  .float.say { background: var(--panel); box-shadow: var(--lift); white-space: normal; width: max-content; }
+  .float.inner { color: #3B3833; background: rgba(237, 230, 211, 0.6); border: 1px dashed rgba(30, 27, 34, 0.45); }
+  .float.act { color: var(--shu); background: rgba(237, 230, 211, 0.6); font-size: 12px; }
+  body:not(.show-inner) .float.inner, body:not(.show-inner) .float.act, body:not(.show-talk) .float.say { display: none; }
+  .side { position: fixed; z-index: 5; right: 12px; width: min(340px, calc(100vw - 24px)); background: var(--panel); box-shadow: var(--lift); font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; font-size: 12px; display: none; }
+  .side h4 { margin: 0; padding: 8px 12px 6px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  body.show-log #logPanel, body.show-minds #mindPanel { display: block; }
+  #logPanel { bottom: 12px; height: 34vh; display: none; flex-direction: column; }
+  body.show-log #logPanel { display: flex; }
+  #log { overflow-y: auto; padding: 0 12px 10px; flex: 1; }
+  #log div { display: grid; grid-template-columns: 2.6em 4.4em 3.2em 1fr; gap: 6px; padding: 2px 0; border-top: 1px solid rgba(30, 27, 34, 0.08); }
+  #log .t { color: var(--soft); font-variant-numeric: tabular-nums; }
+  #log .k { color: var(--soft); }
+  #log .say .x { font-weight: 600; }
+  #log .act .x { color: var(--shu); }
+  #log .unaware .x::after { content: ' 自覚なし'; color: var(--soft); font-size: 11px; }
+  .side h4 button { font: inherit; font-size: 12px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; padding: 2px 8px; border-radius: 2px; cursor: pointer; }
+  #mindPanel { top: 56px; max-height: calc(100vh - 140px - 34vh); overflow-y: auto; }
+  .mind { padding: 8px 12px; border-top: 1px solid rgba(30, 27, 34, 0.1); }
+  .mind .head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .mind .head b { font-weight: 600; }
+  .mind .head span { color: var(--soft); }
+  .gauge { position: relative; height: 8px; background: rgba(30, 27, 34, 0.08); margin: 4px 0 6px; }
+  .gauge i { position: absolute; top: 0; bottom: 0; left: 0; background: var(--ink); }
+  .gauge s { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--shu); }
+  .gauge u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #7FA05E; }
+  .pol { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 3px 8px; align-items: center; }
+  .pol select { font: inherit; font-size: 11px; max-width: 100%; }
+  .pol label { color: var(--soft); }
+  .pol input[type=range] { width: 100%; }
+  .legend { color: var(--soft); padding: 0 12px 8px; display: flex; gap: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 4px; vertical-align: middle; margin-right: 4px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
@@ -65,11 +103,14 @@
 <body>
 <canvas id="c"></canvas>
 <div class="card" id="card"><h2>The bridge is out</h2><dl class="facts"><div><dt>Boat</dt><dd>1</dd></div><div><dt>Seats</dt><dd>4 + cart</dd></div><div><dt>Trips</dt><dd>1</dd></div></dl><p class="outcome">One person stays behind</p></div>
-<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Food</dt><dd>9 days</dd></div><div><dt>To the sea</dt><dd>160 km</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>Majority vote</b><div class="tally" id="tally"></div></div></div>
+<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Food</dt><dd>9 days</dd></div><div><dt>To the sea</dt><dd>160 km</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>Majority vote</b><div class="tally" id="tally"></div></div><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div></div>
+<section class="side" id="mindPanel"><h4>Minds<button id="restart" class="sub">Restart</button></h4><div class="legend"><span><i style="background:var(--ink)"></i>見積もり</span><span><i style="background:var(--shu)"></i>一般常識</span><span><i style="background:#7FA05E"></i>実際</span></div><div id="minds"></div></section>
+<section class="side" id="logPanel"><h4>Log</h4><div id="log"></div></section>
 <div class="caption" id="caption">大槻 文雄 stayed behind</div>
 <div class="ask" id="ask"><h3>Was this the right way to decide?</h3><button>Choose the rule next time</button><button class="sub">Journey log</button></div>
 <script type="module">
 import { createJourney } from './journey.js';
+import { COMMON } from './mind.js';
 
 const LINES = [
   { at: 9.5, who: 0, mood: { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 }, text: '荷車は置いていけない。食料がないと向こうで全員もたない。' },
@@ -82,6 +123,7 @@ const LINES = [
 const VOTES = [['渡瀬 透', '大槻 文雄'], ['春日 灯', '大槻 文雄'], ['大槻 文雄', '大槻 文雄'], ['森 由真', 'Lottery'], ['ナギ', '大槻 文雄']];
 
 const bubbles = [];
+const floats = [];
 let current = null;
 const ui = {
   frame(state, figures, toScreen) {
@@ -102,6 +144,13 @@ const ui = {
         c.style.marginRight = so ? `${so * 1.5}px` : '0';
       });
     });
+    floats.forEach((fl, who) => {
+      if (!fl) return;
+      if (state.t > fl.until) { fl.el.remove(); floats[who] = null; return; }
+      const f = figures[who];
+      const [x, y] = toScreen(f.position.clone().setY(f.position.y + 1.15));
+      fl.el.style.left = x + 'px'; fl.el.style.top = Math.max(hudBottom + 30, y) + 'px';
+    });
     votes.forEach((v) => {
       const f = figures[v.i];
       const [x, y] = toScreen(f.position.clone().setY(f.position.y + 1.25));
@@ -110,10 +159,14 @@ const ui = {
   },
 };
 
-const j = createJourney(document.getElementById('c'), ui, { seed: 7 });
-// 出来事の前に歩く時間。歩き方で人柄が見えるよう、少し長めに歩かせる
-const LEAD = 5;
-j.state.caravanX = 25 - LEAD * 1.4;
+// 方針は Minds パネルで変えられる。変えた値はこの画面を開いている間だけ残す
+let saved = {};
+try { saved = JSON.parse(sessionStorage.getItem('hitowaku-policies') || '{}'); } catch {}
+const j = createJourney(document.getElementById('c'), ui, { seed: 7, policies: saved });
+// 橋の手前まで歩く。着くまでの時間は、一行がどう歩みを合わせるかで変わる
+j.state.caravanX = j.state.arriveX - 16;
+// 出来事の時刻は、橋に着いた時刻から数える（台本の 6.6 秒が着いた瞬間）
+const ARRIVE = 6.6;
 
 // 字を一つずつ揺らすので、折り返しは文節のまとまりで行う（語の途中で切らない）
 const segmenter = new Intl.Segmenter('ja', { granularity: 'word' });
@@ -157,7 +210,6 @@ function say(line) {
 const votes = [];
 const $ = (id) => document.getElementById(id);
 const events = [
-  [6.6, () => { j.state.walking = false; }],
   [7.0, () => $('card').classList.add('show')],
   [9.0, () => $('card').classList.add('docked')],
   ...LINES.map((l) => [l.at, () => say(l)]),
@@ -190,9 +242,96 @@ const events = [
 let ei = 0;
 function step(dt) {
   j.update(dt);
-  while (ei < events.length && events[ei][0] + LEAD <= j.state.t) { events[ei][1](); ei++; }
+  if (show.minds) drawMinds();
+  const at = j.state.arrivedAt;
+  while (at !== null && ei < events.length && events[ei][0] - ARRIVE + at <= j.state.t) { events[ei][1](); ei++; }
 }
 events.sort((a, b) => a[0] - b[0]);
+
+// ---------- 頭の中の表示 ----------
+const KIND = { inner: '内心', say: '発話', hear: '聞いた', act: '行動' };
+const show = { inner: true, talk: true, log: false, minds: false };
+try { Object.assign(show, JSON.parse(localStorage.getItem('hitowaku-show') || '{}')); } catch {}
+function applyShow() {
+  document.body.classList.toggle('show-inner', show.inner);
+  document.body.classList.toggle('show-talk', show.talk);
+  document.body.classList.toggle('show-log', show.log);
+  document.body.classList.toggle('show-minds', show.minds);
+  document.querySelectorAll('#toggles button').forEach((b) => b.setAttribute('aria-pressed', String(show[b.dataset.k])));
+  try { localStorage.setItem('hitowaku-show', JSON.stringify(show)); } catch {}
+}
+document.querySelectorAll('#toggles button').forEach((b) => b.addEventListener('click', () => { show[b.dataset.k] = !show[b.dataset.k]; applyShow(); }));
+addEventListener('keydown', (e) => {
+  const k = { t: 'inner', k: 'talk', l: 'log', m: 'minds' }[e.key.toLowerCase()];
+  if (k && !e.target.closest('input, select')) { show[k] = !show[k]; applyShow(); }
+});
+applyShow();
+
+// 頭の上の短い表示：内心は点線の枠、発話は紙の地、自覚のない変化は朱の小さな字
+function float(e) {
+  const cls = e.kind === 'say' ? 'say' : e.kind === 'act' ? 'act' : 'inner';
+  if (e.kind === 'act' && e.aware !== false) return;
+  floats[e.who]?.el.remove();
+  const el = document.createElement('div');
+  el.className = 'float ' + cls;
+  el.textContent = e.short ?? e.text;
+  document.body.appendChild(el);
+  floats[e.who] = { el, until: j.state.t + (cls === 'say' ? 3.2 : 2.6) };
+}
+const logEl = $('log');
+function addLog(e) {
+  const row = document.createElement('div');
+  row.className = e.kind + (e.aware === false ? ' unaware' : '');
+  row.innerHTML = `<span class="t">${e.t.toFixed(1)}</span><span>${e.name}</span><span class="k">${KIND[e.kind]}</span><span class="x"></span>`;
+  row.querySelector('.x').textContent = e.text;
+  logEl.appendChild(row);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+j.minds.onLog((e) => { float(e); addLog(e); });
+
+// 方針のパネル：見積もり（墨）、一般常識（朱）、実際（緑）を一本の目盛りに並べる
+const VOICE = { share: '伝える', declare: '方針だけ言う', hide: '内心にとどめる' };
+const mindsEl = $('minds');
+const scale = (v) => Math.min(100, v / 1.4 * 100) + '%';
+j.minds.minds.forEach((m) => {
+  const box = document.createElement('div');
+  box.className = 'mind';
+  box.innerHTML = `<div class="head"><b>${m.name}</b><span class="watch"></span></div>
+    <div class="gauge"><i></i><s></s><u></u></div>
+    <div class="pol">
+      <label>合わせる</label><input type="range" min="0" max="1" step="0.1" data-p="adapt">
+      <label>観察する</label><input type="checkbox" data-p="observe">
+      <label>学ぶ</label><input type="range" min="0" max="1" step="0.1" data-p="learn">
+      <label>自覚する</label><input type="checkbox" data-p="metacog">
+      <label>言うか</label><select data-p="voice">${Object.entries(VOICE).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+      <label>人の話を信じる</label><input type="range" min="0" max="1" step="0.1" data-p="trust">
+    </div>`;
+  box.querySelectorAll('[data-p]').forEach((inp) => {
+    const k = inp.dataset.p;
+    if (inp.type === 'checkbox') inp.checked = m.policy[k]; else inp.value = m.policy[k];
+    inp.addEventListener('input', () => {
+      m.policy[k] = inp.type === 'checkbox' ? inp.checked : inp.type === 'range' ? Number(inp.value) : inp.value;
+      saved[m.id] = { ...m.policy };
+      try { sessionStorage.setItem('hitowaku-policies', JSON.stringify(saved)); } catch {}
+    });
+  });
+  m.el = box;
+  mindsEl.appendChild(box);
+});
+$('restart').addEventListener('click', () => location.reload());
+function drawMinds() {
+  j.minds.minds.forEach((m) => {
+    const o = j.minds.watching(m);
+    m.el.querySelector('.watch').textContent = o ? `${o.first}さんを見ている` : '誰も気にかけていない';
+    const g = m.el.querySelector('.gauge');
+    g.style.visibility = o ? 'visible' : 'hidden';
+    if (!o) return;
+    g.querySelector('i').style.width = scale(m.belief[o.i]);
+    g.querySelector('s').style.left = scale(COMMON[o.kind]);
+    g.querySelector('u').style.left = scale(o.ability);
+    g.title = `${o.first}さんの速さ　見積もり ${m.belief[o.i].toFixed(2)}／一般常識 ${COMMON[o.kind]}／実際 ${o.ability}`;
+  });
+}
 // 録画のときは外から一コマずつ進める
 if (new URLSearchParams(location.search).has('capture')) {
   window.step = step;
