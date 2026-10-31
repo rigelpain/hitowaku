@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>水門番</title>
+<link rel="stylesheet" href="fonts/shippori-mincho/500.css">
+<link rel="stylesheet" href="fonts/shippori-mincho/700.css">
+<style>
+  :root { --paper: #EDE6D3; --panel: rgba(237, 230, 211, 0.95); --ink: #1E1B22; --shu: #C8452D; --soft: #6B665B; --line: rgba(30, 27, 34, 0.12); --water: #2F6E8C; --lift: 0 1px 2px rgba(30, 27, 34, 0.18), 0 4px 14px rgba(30, 27, 34, 0.12); --sans: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; --mincho: 'Shippori Mincho', serif; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font-family: var(--sans); overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; cursor: grab; touch-action: none; }
+  canvas.drag { cursor: grabbing; }
+  button { font: inherit; cursor: pointer; color: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* 上の帯：山全体の状態 */
+  .bar { position: fixed; z-index: 20; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 20px; padding: 9px 16px; background: var(--panel); box-shadow: 0 1px 0 var(--line); }
+  .bar > b { font-family: var(--mincho); font-size: 18px; font-weight: 700; white-space: nowrap; }
+  .stats { display: flex; gap: 18px; margin: 0; overflow-x: auto; scrollbar-width: none; }
+  .stats div { display: flex; flex-direction: column; gap: 1px; min-width: 40px; }
+  .stats dt { font-size: 10px; color: var(--soft); }
+  .stats dd { margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap; }
+  .stats dd.bad { color: var(--shu); }
+  .pips { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+  .pips i { width: 7px; height: 7px; border-radius: 1px; background: rgba(30, 27, 34, 0.15); }
+  .pips i.on { background: var(--ink); }
+  .pips i.surge { box-shadow: inset 0 0 0 1.5px var(--shu); }
+  .bar .right { margin-left: auto; display: flex; gap: 6px; position: relative; }
+  .ghost { font-size: 12px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; padding: 4px 10px; border-radius: 2px; white-space: nowrap; }
+  .ghost[aria-pressed="true"] { background: rgba(30, 27, 34, 0.1); border-color: rgba(30, 27, 34, 0.5); }
+  .menu { position: absolute; right: 0; top: calc(100% + 8px); background: var(--panel); box-shadow: var(--lift); padding: 10px 12px; display: none; min-width: 230px; font-size: 12px; }
+  .menu.open { display: block; }
+  .menu p { margin: 8px 0 4px; color: var(--soft); }
+  .menu .row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .menu .hint { margin: 4px 0 0; font-size: 11px; line-height: 1.5; }
+
+  .panel { position: fixed; z-index: 10; background: var(--panel); box-shadow: var(--lift); border-radius: 3px; font-size: 12px; }
+  .panel h4 { margin: 0; padding: 8px 12px 6px; font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+  .panel h4 span { font-weight: 400; color: var(--soft); }
+
+  /* 下の操作盤：円盤（山と同じ形）・選んだ池・流す */
+  #gates { left: 50%; bottom: 12px; transform: translateX(-50%); width: min(820px, calc(100vw - 24px)); display: grid; grid-template-columns: 210px 1fr 170px; }
+  #gates > div { padding: 10px 12px; }
+  .dial svg { width: 186px; height: 186px; display: block; touch-action: none; }
+  .dial .w { cursor: pointer; stroke: var(--paper); stroke-width: 1.5; }
+  .dial .w.sel { stroke: var(--ink); stroke-width: 3; }
+  .dial .w.danger { stroke: var(--shu); stroke-width: 2.5; }
+  .dial text { font-size: 10px; font-weight: 600; pointer-events: none; text-anchor: middle; dominant-baseline: middle; fill: var(--ink); font-family: var(--sans); }
+  .dial text.light { fill: var(--paper); }
+  .dial .dirs text { font-size: 9px; fill: var(--soft); font-weight: 500; }
+  .sel-detail { border-left: 1px solid var(--line); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+  .sel-detail .head { display: flex; align-items: baseline; gap: 8px; }
+  .sel-detail .head b { font-family: var(--mincho); font-size: 18px; }
+  .sel-detail .head span { color: var(--soft); font-size: 11px; }
+  .sel-detail .head .pct { margin-left: auto; font-size: 22px; font-weight: 700; color: var(--ink); }
+  .wrow { display: flex; align-items: center; gap: 8px; }
+  .wrow input { flex: 1; accent-color: var(--water); }
+  .wrow button { width: 26px; height: 26px; padding: 0; }
+  .gauge { position: relative; height: 12px; background: rgba(30, 27, 34, 0.06); border-radius: 2px; overflow: hidden; }
+  .gauge .wl { position: absolute; left: 0; top: 0; bottom: 0; background: var(--water); }
+  .gauge .p { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(47, 110, 140, 0.55) 0 3px, rgba(47, 110, 140, 0.18) 3px 6px); }
+  .gauge .d { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--ink); }
+  .read { display: flex; justify-content: space-between; color: var(--soft); font-size: 11px; gap: 8px; }
+  .warn { color: var(--shu); font-weight: 600; visibility: hidden; }
+  .sel-detail.danger .warn { visibility: visible; }
+  .sel-detail.danger .gauge .d { background: var(--shu); }
+  .sum { color: var(--soft); font-size: 11px; line-height: 1.6; margin-top: auto; }
+  .sum b { color: var(--ink); font-weight: 600; }
+  .gofoot { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+  .go { font-size: 15px; font-weight: 700; background: var(--ink); color: var(--paper); border: 0; padding: 12px; border-radius: 2px; }
+  .go:disabled { opacity: 0.4; cursor: default; }
+  .go kbd { font: inherit; font-size: 11px; opacity: 0.6; margin-left: 6px; font-weight: 400; }
+  .gofoot .fall { font-size: 11px; color: var(--soft); line-height: 1.5; }
+
+  /* 声 */
+  #voices { right: 12px; top: calc(var(--bar-h, 50px) + 10px); width: 300px; height: min(46vh, 440px); display: flex; flex-direction: column; }
+  #log { overflow-y: auto; flex: 1; min-height: 0; padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .msg { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; cursor: pointer; }
+  .msg .who { font-size: 11px; color: var(--soft); display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+  .msg .who b { color: var(--ink); font-weight: 600; }
+  .msg .text { padding: 6px 10px; border-radius: 10px; font-size: 13px; line-height: 1.55; max-width: 92%; font-family: var(--mincho); }
+  .msg.say .text { background: #FBF6EA; box-shadow: 0 1px 2px rgba(30, 27, 34, 0.15); }
+  .msg.inner .text { border: 1px dashed rgba(30, 27, 34, 0.4); color: #3B3833; }
+  .msg.muse .text { background: rgba(47, 110, 140, 0.1); color: #2E4A5A; }
+  .msg.harsh .text { box-shadow: inset 3px 0 0 var(--shu), 0 1px 2px rgba(30, 27, 34, 0.15); }
+  .sys { align-self: stretch; text-align: center; font-size: 11px; color: var(--soft); margin: 2px 0; }
+  .sys.event { color: var(--ink); font-weight: 600; font-size: 12px; margin: 12px 0 2px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .sys.bad { color: var(--shu); font-weight: 600; }
+  .filters { display: flex; gap: 4px; }
+  .filters button { font-size: 11px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; color: var(--soft); padding: 1px 7px; border-radius: 10px; }
+  .filters button[aria-pressed="true"] { background: rgba(30, 27, 34, 0.1); color: var(--ink); border-color: rgba(30, 27, 34, 0.5); }
+  #log.no-say .say, #log.no-inner .inner, #log.no-muse .muse { display: none; }
+
+  /* 池・世帯の詳しいこと */
+  #inspect { left: 12px; top: calc(var(--bar-h, 50px) + 10px); width: 280px; display: none; max-height: calc(100vh - var(--bar-h, 50px) - 260px); overflow-y: auto; }
+  #inspect.show { display: block; }
+  #inspect .body { padding: 10px 12px 12px; }
+  #inspect .name { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  #inspect .name b { font-family: var(--mincho); font-size: 18px; }
+  #inspect .name span { color: var(--soft); }
+  .chips { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 8px; }
+  .chips i { font-style: normal; font-size: 11px; background: rgba(30, 27, 34, 0.07); padding: 1px 7px; border-radius: 9px; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 10px; align-items: center; margin-bottom: 8px; }
+  .kv dt { color: var(--soft); font-size: 11px; }
+  .kv dd { margin: 0; }
+  .bar1 { height: 6px; background: rgba(30, 27, 34, 0.08); position: relative; }
+  .bar1 i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); }
+  .stack { display: flex; flex-direction: column-reverse; gap: 2px; }
+  .stack div { padding: 3px 8px; font-size: 12px; background: rgba(30, 27, 34, 0.05); border-left: 3px solid var(--c, #999); }
+  .stack div.sunk { background: rgba(47, 110, 140, 0.16); color: #2E4A5A; border-left-color: var(--water); }
+  .stack div.sunk::after { content: '沈んだ'; float: right; font-size: 10px; color: var(--water); }
+  .homes { display: flex; flex-direction: column; gap: 2px; }
+  .homes button { text-align: left; background: rgba(30, 27, 34, 0.04); border: 0; padding: 5px 8px; border-radius: 2px; display: flex; gap: 8px; align-items: baseline; }
+  .homes button:hover { background: rgba(30, 27, 34, 0.1); }
+  .homes button span { color: var(--soft); font-size: 11px; margin-left: auto; }
+  #inspect h5 { font-size: 11px; color: var(--soft); margin: 10px 0 6px; font-weight: 600; }
+
+  /* 場面の名札・声 */
+  .tag { position: fixed; z-index: 4; transform: translate(-50%, -100%); font-size: 10px; background: rgba(237, 230, 211, 0.82); padding: 1px 6px; border-radius: 2px; white-space: nowrap; pointer-events: none; font-weight: 600; }
+  .tag.sel { background: var(--ink); color: var(--paper); }
+  .tag.gate { font-family: var(--mincho); font-size: 13px; }
+  .float { position: fixed; z-index: 5; transform: translate(-50%, -100%); max-width: 14em; width: max-content; font-family: var(--mincho); font-size: 13px; line-height: 1.5; padding: 4px 9px; background: var(--panel); box-shadow: var(--lift); border-radius: 2px; pointer-events: none; }
+  .float.inner { border: 1px dashed rgba(30, 27, 34, 0.45); box-shadow: none; background: rgba(237, 230, 211, 0.85); }
+  .float.muse { background: rgba(214, 228, 232, 0.95); }
+  .float b { display: block; font-family: var(--sans); font-size: 10px; color: var(--soft); font-weight: 500; }
+  .phase { position: fixed; z-index: 6; left: 50%; top: calc(var(--bar-h, 50px) + 10px); transform: translateX(-50%); background: var(--ink); color: var(--paper); font-size: 12px; padding: 6px 14px; border-radius: 2px; white-space: nowrap; opacity: 0; transition: opacity .2s; }
+  .phase.show { opacity: 1; }
+  .phase kbd { font: inherit; opacity: 0.6; margin-left: 8px; }
+  .viewctl { position: fixed; z-index: 9; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .viewctl button { width: 32px; height: 32px; padding: 0; background: var(--panel); border: 0; box-shadow: var(--lift); border-radius: 3px; font-size: 15px; }
+
+  /* 出来事・始める前・結果 */
+  .sheet { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(30, 27, 34, 0.35); }
+  .sheet.show { display: flex; }
+  .sheet > div { background: var(--paper); box-shadow: var(--lift); width: min(680px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 24px 26px 20px; box-sizing: border-box; border-radius: 3px; }
+  .sheet h1, .sheet h2 { font-family: var(--mincho); margin: 0 0 10px; font-weight: 700; }
+  .sheet h1 { font-size: 30px; }
+  .sheet h2 { font-size: 22px; }
+  .sheet h3 { font-size: 12px; margin: 18px 0 8px; color: var(--soft); font-weight: 600; }
+  .lead { margin: 0 0 16px; font-family: var(--mincho); font-size: 16px; line-height: 1.85; color: #3B3833; }
+  .rules { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 18px; font-size: 13px; line-height: 1.6; }
+  .rules dt { color: var(--soft); font-size: 12px; }
+  .rules dd { margin: 0; }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .foot span { color: var(--soft); font-size: 12px; }
+  .primary { font-size: 15px; font-weight: 700; background: var(--ink); color: var(--paper); border: 0; padding: 10px 22px; border-radius: 2px; }
+  .timer { height: 4px; background: rgba(30, 27, 34, 0.12); margin: 4px 0 14px; position: relative; }
+  .timer i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--shu); }
+  .choices { display: grid; grid-template-columns: 3.5em repeat(4, 1fr); gap: 6px; align-items: stretch; }
+  .choices .rh { font-family: var(--mincho); font-weight: 700; display: flex; align-items: center; }
+  .choices .ch { font-size: 11px; color: var(--soft); text-align: center; }
+  .choices button { text-align: left; background: #FBF6EA; border: 2px solid transparent; padding: 6px 8px; border-radius: 3px; box-shadow: 0 1px 2px rgba(30, 27, 34, 0.15); font-size: 11px; line-height: 1.5; }
+  .choices button.def { border-color: var(--ink); }
+  .choices button em { font-style: normal; font-size: 10px; color: var(--paper); background: var(--ink); padding: 0 5px; border-radius: 2px; display: none; }
+  .choices button.def em { display: inline-block; }
+  .choices button .risk { color: var(--shu); font-weight: 600; }
+  .cmp { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .cmp th { text-align: right; font-weight: 500; color: var(--soft); font-size: 11px; padding: 0 0 6px 8px; white-space: nowrap; }
+  .cmp th:first-child, .cmp td:first-child { text-align: left; padding-left: 0; }
+  .cmp td { text-align: right; padding: 6px 0 6px 8px; border-top: 1px solid var(--line); }
+  .cmp tr.me td { font-weight: 700; }
+  .rres { display: grid; grid-template-columns: 200px 1fr; gap: 16px; align-items: center; }
+  .rres svg { width: 190px; height: 190px; }
+  .note { font-size: 13px; line-height: 1.8; margin: 0; }
+  @media (max-width: 900px) {
+    .bar { gap: 12px; padding: 7px 10px; }
+    .stats dd { font-size: 13px; }
+    .pips, #helpBtn { display: none; }
+    #voices { height: 20vh; width: calc(100vw - 24px); }
+    #gates { grid-template-columns: 130px 1fr; }
+    .dial svg { width: 112px; height: 112px; }
+    .gofoot { grid-column: 1 / -1; flex-direction: row; padding-top: 0 !important; }
+    .gofoot .fall { display: none; }
+    .sel-detail { border-right: 0; }
+    .sum { display: none; }
+    #inspect { top: calc(var(--bar-h, 50px) + 20vh + 20px); max-height: 30vh; }
+    .viewctl { bottom: auto; top: calc(var(--bar-h, 50px) + 20vh + 20px); }
+    .choices { grid-template-columns: 2.5em repeat(4, 1fr); }
+    .rres { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<header class="bar" id="bar"><b>水門番</b>
+  <dl class="stats">
+    <div><dt>Season</dt><dd><span class="num" id="sSeason">1 / 8</span><span class="pips" id="pips"></span></dd></div>
+    <div><dt>Fall</dt><dd class="num" id="sFall">–</dd></div>
+    <div><dt>People</dt><dd class="num" id="sPeople">–</dd></div>
+    <div><dt>Dams</dt><dd class="num" id="sDams">–</dd></div>
+    <div><dt>Trust</dt><dd class="num" id="sTrust">–</dd></div>
+    <div><dt>Sunk</dt><dd class="num" id="sSunk">0</dd></div>
+    <div><dt>Bursts</dt><dd class="num" id="sBursts">0</dd></div>
+    <div><dt>Town</dt><dd class="num" id="sTown">0</dd></div>
+  </dl>
+  <div class="right"><button class="ghost" id="helpBtn">About</button><button class="ghost" id="optBtn" aria-expanded="false">Options</button>
+    <div class="menu" id="menu">
+      <p>Voices</p><div class="row" id="vlevel"><button class="ghost" data-v="0">0</button><button class="ghost" data-v="1">1</button><button class="ghost" data-v="2">2</button><button class="ghost" data-v="3">3</button></div>
+      <p class="hint" id="vhint" style="color:var(--soft)"></p>
+      <p>Mountain <span id="seedLabel"></span></p>
+      <div class="row"><button class="ghost" id="sameValley">同じ山でやり直す</button><button class="ghost" id="newValley">別の山へ</button></div>
+    </div>
+  </div>
+</header>
+
+<section class="panel" id="gates">
+  <div class="dial"><svg id="dial" viewBox="-110 -110 220 220" aria-label="水門の円盤。山を上から見た形で、12 の池が並ぶ"></svg></div>
+  <div class="sel-detail" id="selDetail"></div>
+  <div class="gofoot"><button class="go" id="goBtn">水を流す<kbd>Enter</kbd></button><button class="ghost" id="evenBtn">平等に戻す</button><div class="fall" id="fallNote"></div></div>
+</section>
+
+<section class="panel" id="voices">
+  <h4>Voices<div class="filters" id="filters"><button data-k="say" aria-pressed="true">声</button><button data-k="inner" aria-pressed="true">内心</button><button data-k="muse" aria-pressed="true">沈んだ章</button></div></h4>
+  <div id="log"></div>
+</section>
+
+<section class="panel" id="inspect"><h4><span id="iTitle"></span><button class="ghost" id="iClose" style="padding:1px 8px">閉じる</button></h4><div class="body" id="iBody"></div></section>
+<div id="tags"></div>
+<div class="phase" id="phase"></div>
+<div class="viewctl"><button id="rotL" title="左へ回す（Q）" aria-label="左へ回す">⟲</button><button id="rotR" title="右へ回す（E）" aria-label="右へ回す">⟳</button><button id="zIn" aria-label="近づく">＋</button><button id="zOut" aria-label="離れる">－</button></div>
+
+<section class="sheet show" id="intro"><div>
+  <h1>水門番</h1>
+  <p class="lead">天から、滝が降り続けている。<br>山の人たちは、頂のまわりに段々の池とダムを築き、その水を受け止めて暮らしてきた。<br>あなたは、頂に立つ水門番だ。</p>
+  <dl class="rules">
+    <dt>山</dt><dd>頂のまわりを上段・中段・下段の池が囲み、北・東・南・西に分かれる。池は 12 か所、ふもとには町がある</dd>
+    <dt>毎季節</dt><dd>滝の水を、円盤で 12 の池へ振り分ける</dd>
+    <dt>水かさ</dt><dd>上がると、家の下の段から沈む。家の一段一段は、その家族の人生の章</dd>
+    <dt>決壊</dt><dd>ダムが耐えられないと決壊し、水は同じ方角のひとつ外の段へ。下段が切れると、その方角のふもとの町が浸かる</dd>
+    <dt>住人</dt><dd>空いた手で、自分の家を積み足すか（自分への備え）、ダムを補強するか（みんなへの備え）、よその池を手伝うか、休むかを自分で決める。水を多く抱えた池ほど手が空かない</dd>
+    <dt>滝が太る</dt><dd>ときどき起きる。10 秒で、どの池が受けるかを決める</dd>
+    <dt>季節</dt><dd>8 季節。滝は少しずつ太っていく</dd>
+    <dt>操作</dt><dd>ドラッグで動かす。ホイールで拡大。Q と E で回す。池や家を押すと、詳しいことが開く</dd>
+  </dl>
+  <div class="foot"><span id="introSeed"></span><button class="primary" id="startBtn">水門に立つ</button></div>
+</div></section>
+
+<section class="sheet" id="surge"><div>
+  <h2>滝が太る</h2>
+  <p class="lead" style="margin-bottom:8px">天の滝が、急に太くなった。どこかの池が受けるしかない。</p>
+  <div class="timer"><i id="surgeTimer"></i></div>
+  <div class="choices" id="surgeChoices"></div>
+</div></section>
+
+<section class="sheet" id="result"><div>
+  <h2>8 季節が過ぎた</h2>
+  <h3>ほかの水門番と比べる（同じ山・同じ滝）</h3>
+  <table class="cmp"><thead><tr><th>水門番</th><th>沈んだ章</th><th>決壊</th><th>町が浸かった</th><th>家を失った世帯</th><th>ダムの伸び</th><th>信頼</th></tr></thead><tbody id="cmpRows"></tbody></table>
+  <h3>あなたの山：段ごとに背負ったもの</h3>
+  <table class="cmp"><thead><tr><th>段</th><th>人</th><th>受けた水</th><th>一人あたり</th><th>沈んだ章</th><th>決壊</th><th>一人あたりの働き</th></tr></thead><tbody id="ringRows"></tbody></table>
+  <h3>池ごとの沈んだ章</h3>
+  <div class="rres"><svg id="resDial" viewBox="-110 -110 220 220"></svg><p class="note" id="resNote"></p></div>
+  <h3>聞こえた非難は当たっていたか</h3>
+  <p class="note" id="accuse"></p>
+  <div class="foot" style="margin-top:18px"><button class="ghost" id="rSame">同じ山でやり直す</button><button class="primary" id="rNew">別の山へ</button></div>
+</div></section>
+
+<section class="sheet" id="nogl"><div>
+  <h2>3D の描画が使えません</h2>
+  <p class="lead">このブラウザでは、いま WebGL が使えない状態です。ブラウザの設定で「ハードウェア アクセラレーション」を有効にして、開き直してください。</p>
+  <p id="noglDetail" style="font-size:12px;color:var(--soft)"></p>
+</div></section>
+
+<script type="module">
+import { createValley } from './suimon.js';
+import { createSim, summarize, runPolicy, POLICIES, SEASONS, basinIndex } from './suimon-sim.js';
+import { RINGS, SECTORS } from './suimon-data.js';
+
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const capture = params.has('capture');
+const seed = Number(params.get('seed')) || (capture ? 7 : 1000 + Math.floor(Math.random() * 9000));
+let voiceLevel = 2;
+try { voiceLevel = Number(sessionStorage.getItem('suimon-voices') ?? 2); } catch {}
+const VHINT = ['0：内心と沈んだ章のひとりごとだけ', '1：不満と非難が聞こえる', '2：罵倒も聞こえる（ふだん）', '3：きつい罵倒も聞こえる'];
+$('seedLabel').textContent = '#' + seed; $('introSeed').textContent = 'Mountain #' + seed;
+
+const sim = createSim(seed, { voiceLevel });
+let v;
+try { v = createValley($('c'), { seed }); }
+catch (err) { $('intro').classList.remove('show'); $('nogl').classList.add('show'); $('noglDetail').textContent = 'ブラウザが返した理由：' + (err?.message || err); throw err; }
+window.valley = v; window.sim = sim;
+const L = sim.state.layers, homes = sim.state.homes, N = sim.N;
+const homeById = (id) => homes.find((h) => h.id === id);
+const homesIn = (i) => homes.filter((h) => h.layer === i);
+
+// ---------- 時間：アニメーションは描画の時計で進める（録画のときも同じ） ----------
+const tasks = [];
+let speed = 1;
+const tween = (dur, fn) => new Promise((res) => tasks.push({ t: 0, dur, fn, res }));
+const wait = (dur) => tween(dur, () => {});
+function tick(dt) {
+  const d = dt * speed;
+  for (const k of [...tasks]) {
+    k.t += d; k.fn(Math.min(1, k.t / k.dur));
+    if (k.t >= k.dur) { tasks.splice(tasks.indexOf(k), 1); k.res(); }
+  }
+  v.update(dt);
+  frame();
+}
+
+// ---------- 最初の場面 ----------
+const shown = L.map((l) => ({ level: l.level, cap: l.cap }));
+L.forEach((l, i) => v.setPond(i, l.level, l.cap));
+homes.forEach((h) => v.buildHouse(h));
+v.setFlow(0.5);
+
+// ---------- 円盤：山を上から見た形。北が上 ----------
+const weights = Array(N).fill(5);
+let sel = basinIndex(2, 2);
+const shares = () => { const s = weights.reduce((a, b) => a + b, 0); return s ? weights.map((w) => w / s) : weights.map(() => 1 / N); };
+const RADII = [[22, 48], [50, 76], [78, 104]];
+function wedge(r0, r1, a0, a1) {
+  const p = (r, a) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
+  return `M${p(r0, a0)} L${p(r1, a0)} A${r1} ${r1} 0 0 1 ${p(r1, a1)} L${p(r0, a1)} A${r0} ${r0} 0 0 0 ${p(r0, a0)}Z`;
+}
+const angleOf = (s) => -Math.PI / 2 + s * Math.PI / 2; // 北が上
+// values：池ごとの 0〜1、label：池ごとの文字、mark：池ごとの印
+function drawDial(svg, { values, labels = [], selIdx = null, danger = [], interactive = false }) {
+  let html = '<circle r="19" fill="#5B9AA0"/><text y="1" class="light" style="font-size:9px">滝</text>';
+  L.forEach((l, i) => {
+    const [r0, r1] = RADII[l.ring], a = angleOf(l.sector), g = 0.035;
+    const val = values[i];
+    const col = `rgba(47,110,140,${0.12 + 0.8 * Math.min(1, val)})`;
+    html += `<path class="w${i === selIdx ? ' sel' : ''}${danger[i] ? ' danger' : ''}" data-i="${i}" d="${wedge(r0, r1, a - Math.PI / 4 + g, a + Math.PI / 4 - g)}" fill="${val > 1 ? 'rgba(200,69,45,.85)' : col}"/>`;
+    const rm = (r0 + r1) / 2;
+    if (labels[i] !== undefined) html += `<text x="${(rm * Math.cos(a)).toFixed(1)}" y="${(rm * Math.sin(a)).toFixed(1)}" class="${val > 0.55 ? 'light' : ''}">${labels[i]}</text>`;
+  });
+  html += '<g class="dirs">' + SECTORS.map((s, k) => { const a = angleOf(k), r = 108; return ''; }).join('') + '</g>';
+  svg.innerHTML = html;
+  if (interactive) svg.querySelectorAll('.w').forEach((p) => {
+    p.addEventListener('click', () => selectBasin(Number(p.dataset.i)));
+    p.addEventListener('wheel', (e) => { e.preventDefault(); const i = Number(p.dataset.i); weights[i] = Math.max(0, Math.min(10, weights[i] + (e.deltaY < 0 ? 1 : -1))); sel = i; drawGates(); }, { passive: false });
+  });
+}
+function proj(i) { const f = sim.state.done ? null : sim.forecast(); return L[i].level + (f ? (f.lo + f.hi) / 2 : 0) * shares()[i]; }
+function drawGates() {
+  const sh = shares();
+  drawDial($('dial'), { values: L.map((l, i) => proj(i) / l.cap), labels: sh.map((s) => Math.round(s * 100)), selIdx: sel, danger: L.map((l, i) => proj(i) > l.cap), interactive: true });
+  const l = L[sel], p = proj(sel), GMAX = 16;
+  const pctW = (x) => Math.min(100, x / GMAX * 100);
+  $('selDetail').className = 'sel-detail' + (p > l.cap ? ' danger' : '');
+  $('selDetail').innerHTML = `<div class="head"><b>${l.name}</b><span>${homesIn(sel).length}世帯 ${sim.people(sel)}人</span><span class="pct num">${Math.round(sh[sel] * 100)}%</span></div>
+    <div class="wrow"><button class="ghost" id="wMinus" aria-label="減らす">－</button><input type="range" min="0" max="10" step="1" value="${weights[sel]}" id="wRange" aria-label="${l.name}へ流す割合"><button class="ghost" id="wPlus" aria-label="増やす">＋</button></div>
+    <div class="gauge"><div class="wl" style="width:${pctW(l.level)}%"></div><div class="p" style="left:${pctW(l.level)}%;width:${Math.max(0, pctW(p) - pctW(l.level))}%"></div><div class="d" style="left:${Math.min(99, pctW(l.cap))}%"></div></div>
+    <div class="read"><span class="num">水 ${l.level.toFixed(1)} → ${p.toFixed(1)} ／ ダム ${l.cap.toFixed(1)}</span><span class="warn">決壊のおそれ</span></div>
+    <div class="sum">決壊のおそれ <b>${L.filter((x, i) => proj(i) > x.cap).length}</b> か所。円盤の池を押して選び、ホイールでも配分を変えられる</div>`;
+  $('wRange').addEventListener('input', (e) => { weights[sel] = Number(e.target.value); drawGates(); });
+  $('wMinus').addEventListener('click', () => { weights[sel] = Math.max(0, weights[sel] - 1); drawGates(); });
+  $('wPlus').addEventListener('click', () => { weights[sel] = Math.min(10, weights[sel] + 1); drawGates(); });
+  const f = sim.state.done ? null : sim.forecast();
+  $('fallNote').textContent = f ? `今季の滝 ${f.lo}〜${f.hi}${sim.hasSurge() ? '。太る気配がある' : ''}` : '';
+  drawTags();
+}
+function selectBasin(i, { focus = false } = {}) { sel = i; drawGates(); showBasin(i); if (focus) v.focusOn(i); }
+$('evenBtn').addEventListener('click', () => { weights.fill(5); drawGates(); });
+
+// ---------- 上の帯 ----------
+function drawBar() {
+  $('sSeason').textContent = `${Math.min(sim.state.season + 1, SEASONS)} / ${SEASONS}`;
+  $('pips').innerHTML = Array.from({ length: SEASONS }, (_, k) => `<i class="${k < sim.state.season ? 'on' : ''} ${sim.surgeSeasons.has(k) && k < sim.state.season ? 'surge' : ''}"></i>`).join('');
+  const f = sim.state.done ? null : sim.forecast();
+  $('sFall').textContent = f ? `${f.lo}–${f.hi}` : '–';
+  $('sPeople').textContent = homes.reduce((s, h) => s + h.members, 0);
+  $('sDams').textContent = L.reduce((s, l) => s + l.cap, 0).toFixed(0);
+  const tr = homes.reduce((s, h) => s + h.trust, 0) / homes.length;
+  $('sTrust').textContent = Math.round(tr * 100) + '%';
+  $('sTrust').classList.toggle('bad', tr < 0.35);
+  $('sSunk').textContent = L.reduce((s, l) => s + l.sunk, 0);
+  $('sBursts').textContent = L.reduce((s, l) => s + l.bursts, 0);
+  $('sBursts').classList.toggle('bad', L.some((l) => l.bursts));
+  $('sTown').textContent = sim.state.town;
+  $('sTown').classList.toggle('bad', sim.state.town > 0);
+}
+new ResizeObserver(() => document.documentElement.style.setProperty('--bar-h', $('bar').offsetHeight + 'px')).observe($('bar'));
+
+// ---------- 場面の名札と、頭の上の声 ----------
+$('tags').innerHTML = L.map((l, i) => `<div class="tag" id="t${i}">${l.name}</div>`).join('') + '<div class="tag gate" id="tGate">水門</div>';
+function drawTags() { L.forEach((_, i) => $('t' + i).classList.toggle('sel', i === sel)); }
+const floats = [];
+function float(id, text, kind) {
+  const el = document.createElement('div');
+  el.className = 'float ' + kind;
+  el.innerHTML = `<b>${homeById(id).name}</b>`; el.append(text);
+  document.body.appendChild(el);
+  floats.push({ el, id });
+  if (floats.length > 4) floats.shift().el.remove();
+}
+function clearFloats() { floats.splice(0).forEach((f) => f.el.remove()); }
+function frame() {
+  const put = (el, p) => { const [x, y, z] = v.toScreen(p); el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.display = z > 1 ? 'none' : ''; };
+  L.forEach((_, i) => put($('t' + i), v.labelPoint(i)));
+  put($('tGate'), v.gatePoint());
+  const placed = [];
+  floats.forEach((f) => {
+    const [x, y0] = v.toScreen(v.headOf(f.id));
+    let y = y0; const h = f.el.offsetHeight + 4, w = f.el.offsetWidth;
+    for (const p of placed) if (Math.abs(p.x - x) < (p.w + w) / 2 && Math.abs(p.y - y) < h) y = p.y - h;
+    placed.push({ x, y, w });
+    f.el.style.left = x + 'px'; f.el.style.top = y + 'px';
+  });
+}
+
+// ---------- 声の履歴 ----------
+function addMsg(vo) {
+  const h = homeById(vo.home);
+  const el = document.createElement('div');
+  el.className = `msg ${vo.kind}${vo.cat === 'insult' ? ' harsh' : ''}`;
+  el.innerHTML = `<div class="who"><b>${h.name}</b><span>${L[vo.layer].name}${vo.kind === 'inner' ? '・内心' : vo.kind === 'muse' ? '・沈んだ章' : ''}</span></div><div class="text"></div>`;
+  el.querySelector('.text').textContent = vo.text;
+  el.addEventListener('click', () => showHome(vo.home));
+  $('log').appendChild(el); $('log').scrollTop = $('log').scrollHeight;
+}
+function sys(text, cls = '') { const el = document.createElement('div'); el.className = 'sys ' + cls; el.textContent = text; $('log').appendChild(el); $('log').scrollTop = $('log').scrollHeight; }
+document.querySelectorAll('#filters button').forEach((b) => b.addEventListener('click', () => {
+  const on = b.getAttribute('aria-pressed') !== 'true';
+  b.setAttribute('aria-pressed', on); $('log').classList.toggle('no-' + b.dataset.k, !on);
+}));
+
+// ---------- 池・世帯の詳しいこと ----------
+const ACT = { stack: '自分の家に一段積み足した', reinforce: '自分の池のダムを補強した', help: 'よその池を手伝った', rest: '休んだ' };
+let inspecting = null;
+function showBasin(i) {
+  inspecting = { basin: i }; v.selected.id = null;
+  const l = L[i], hs = homesIn(i);
+  const tr = hs.length ? hs.reduce((s, h) => s + h.trust, 0) / hs.length : 0;
+  const last = sim.state.history.at(-1);
+  $('iTitle').textContent = '池';
+  $('iBody').innerHTML = `<div class="name"><b>${l.name}</b><span>${hs.length}世帯 ${sim.people(i)}人</span></div>
+    <dl class="kv" style="margin-top:8px"><dt>水かさ ／ ダム</dt><dd class="num">${l.level.toFixed(1)} ／ ${l.cap.toFixed(1)}</dd>
+    <dt>水門番への信頼</dt><dd><div class="bar1"><i style="width:${tr * 100}%"></i></div></dd>
+    <dt>前の季節に受けた水</dt><dd>${last ? `公平な取り分の ${Math.round(last.rel[i] * 100)}%` : '—'}</dd>
+    <dt>これまでに沈んだ章</dt><dd class="num">${l.sunk}</dd><dt>決壊</dt><dd class="num">${l.bursts} 回</dd>
+    <dt>水が流れ込む先</dt><dd>${l.down !== null ? L[l.down].name : 'ふもとの町'}</dd></dl>
+    <h5>暮らしている世帯</h5><div class="homes">${hs.map((h) => `<button data-id="${h.id}"><b>${h.name}</b>${h.layer !== h.home ? '<i style="font-style:normal;font-size:10px;color:var(--shu)">移ってきた</i>' : ''}<span>${h.members}人・${h.blocks.filter((b) => !b.sunk).length}段</span></button>`).join('')}</div>`;
+  $('iBody').querySelectorAll('.homes button').forEach((b) => b.addEventListener('click', () => showHome(b.dataset.id)));
+  $('inspect').classList.add('show');
+}
+function showHome(id) {
+  inspecting = { home: id }; v.selected.id = id;
+  const h = homeById(id);
+  $('iTitle').innerHTML = `${L[h.layer].name}${h.layer !== h.home ? `（もとは${L[h.home].name}）` : ''}`;
+  const chapters = h.blocks.filter((b) => !b.foundation);
+  const known = L.filter((o) => o.i !== h.layer && (o.sector === L[h.layer].sector || o.ring === L[h.layer].ring));
+  $('iBody').innerHTML = `<div class="name"><b>${h.name}</b><span>${h.age}歳・${h.members}人家族</span></div>
+    <div class="chips">${h.facts.map((f) => `<i>${f}</i>`).join('')}</div>
+    <dl class="kv"><dt>水門番への信頼</dt><dd><div class="bar1"><i style="width:${h.trust * 100}%"></i></div></dd>
+    <dt>見通し</dt><dd><div class="bar1"><i style="width:${h.foresight * 100}%"></i></div></dd>
+    <dt></dt><dd style="color:var(--soft);font-size:11px;margin-top:-3px">${h.foresight > 0.65 ? '水はまだ増えると思っている' : h.foresight < 0.35 ? 'そのうち止むと思っている' : '半信半疑'}</dd>
+    <dt>余力</dt><dd><div class="bar1"><i style="width:${Math.min(1, h.means / 2) * 100}%"></i></div></dd>
+    <dt>この季節</dt><dd>${h.action ? (h.action === 'stack' ? (h.why === 'late' ? '水が来て、慌てて家を足した' : '先回りして家を足した') : ACT[h.action]) + (h.target !== null && h.target !== undefined ? `（${L[h.target].name}）` : '') : '—'}</dd></dl>
+    <h5>顔の見える池の見立て（よく働いていると思っているか）</h5>
+    <div class="kv">${known.map((o) => `<dt>${o.name}</dt><dd><div class="bar1"><i style="width:${h.belief[o.i] * 100}%"></i></div></dd>`).join('')}</div>
+    <h5>家の章（下から）</h5>
+    <div class="stack" style="--c:${h.wall}">${chapters.map((b) => `<div class="${b.sunk ? 'sunk' : ''}">${b.n}</div>`).join('')}</div>`;
+  $('inspect').classList.add('show');
+}
+function refreshInspect() { if (!inspecting) return; if (inspecting.home) showHome(inspecting.home); else showBasin(inspecting.basin); }
+$('iClose').addEventListener('click', () => { inspecting = null; v.selected.id = null; $('inspect').classList.remove('show'); });
+
+// ---------- 画面の操作：ドラッグ・ホイール・回す・選ぶ ----------
+const cv = $('c');
+let drag = null;
+cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.moved > 4) { cv.classList.add('drag'); v.pan(dx, dy); }
+});
+cv.addEventListener('pointerup', (e) => {
+  if (drag && drag.moved <= 4) {
+    const hit = v.pick(e.clientX, e.clientY);
+    if (hit?.home) showHome(hit.home);
+    else if (hit?.basin !== undefined) selectBasin(hit.basin);
+  }
+  drag = null; cv.classList.remove('drag');
+});
+cv.addEventListener('wheel', (e) => { e.preventDefault(); v.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1); }, { passive: false });
+$('rotL').addEventListener('click', () => v.rotate(-1)); $('rotR').addEventListener('click', () => v.rotate(1));
+$('zIn').addEventListener('click', () => v.zoom(1.25)); $('zOut').addEventListener('click', () => v.zoom(0.8));
+
+// ---------- 滝が太る（10 秒で受ける池を決める） ----------
+function askSurge() {
+  return new Promise((resolve) => {
+    const sh = shares();
+    const def = sh.indexOf(Math.max(...sh));
+    let html = '<span></span>' + SECTORS.map((s) => `<span class="ch">${s}</span>`).join('');
+    RINGS.forEach((g, ring) => {
+      html += `<span class="rh">${g.name}</span>`;
+      SECTORS.forEach((_, s) => {
+        const i = basinIndex(ring, s), l = L[i], room = l.cap - l.level;
+        html += `<button data-i="${i}" class="${i === def ? 'def' : ''}"><em>このまま</em> ${sim.people(i)}人<br>${l.level.toFixed(1)}／${l.cap.toFixed(1)}<br>${room < 5 ? '<span class="risk">切れそう</span>' : 'もちそう'}</button>`;
+      });
+    });
+    $('surgeChoices').innerHTML = html;
+    $('surge').classList.add('show');
+    v.setMood({ tension: 0.45 });
+    let done = false;
+    const finish = (i) => { if (done) return; done = true; $('surge').classList.remove('show'); v.setMood({ tension: 0 }); resolve(i); };
+    $('surgeChoices').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => finish(Number(b.dataset.i))));
+    tween(10, (k) => { $('surgeTimer').style.width = (100 - k * 100) + '%'; }).then(() => finish(def));
+  });
+}
+
+// ---------- 一つの季節 ----------
+let busy = false;
+const phase = (text) => { $('phase').innerHTML = text ? `${text}<kbd>Space で早送り</kbd>` : ''; $('phase').classList.toggle('show', !!text); };
+const animate = (dur, target) => {
+  const a = shown.map((s) => ({ ...s }));
+  return tween(dur, (k) => L.forEach((_, i) => {
+    const t = target(i);
+    if (t.level !== undefined) shown[i].level = a[i].level + (t.level - a[i].level) * k;
+    if (t.cap !== undefined) shown[i].cap = a[i].cap + (t.cap - a[i].cap) * k;
+    v.setPond(i, shown[i].level, shown[i].cap);
+  }));
+};
+async function season() {
+  if (busy || sim.state.done) return;
+  busy = true; $('goBtn').disabled = true; clearFloats();
+  const sh = shares();
+  const n = sim.state.season;
+  let surgeTo = null;
+  if (sim.hasSurge()) surgeTo = await askSurge();
+  const { ev, rec } = sim.step(sh, surgeTo);
+  sys(`季節 ${n + 1}　滝 ${rec.rain.toFixed(1)}`, 'event');
+  if (surgeTo !== null) sys(`滝が太った。${L[surgeTo].name}が受けた（+${rec.surge.toFixed(1)}）`, 'bad');
+  phase('滝の水を流している');
+  v.setTroughs(sh, true); v.setFlow(Math.min(1.4, rec.rain / 30 + (surgeTo !== null ? 0.4 : 0)));
+  await animate(1.8, (i) => ({ level: rec.peak[i] }));
+  v.setTroughs(sh, false); v.setFlow(0.5);
+  // 決壊（内側から順に）
+  const towns = new Set();
+  for (const e of ev.filter((x) => x.type === 'burst')) {
+    phase(`${L[e.layer].name}のダムが決壊`);
+    sys(`${L[e.layer].name}のダムが決壊した。水は${e.to !== null ? L[e.to].name : `${SECTORS[L[e.layer].sector]}のふもとの町`}へ`, 'bad');
+    v.setMood({ tension: 0.6 });
+    v.setFall(e.layer, true, e.out / 6);
+    if (e.to === null) { v.setTown(L[e.layer].sector, true); towns.add(L[e.layer].sector); }
+    await animate(1.1, (i) => ({ level: e.levels[i], cap: e.caps[i] }));
+    v.setFall(e.layer, false);
+  }
+  v.setMood({ tension: 0 });
+  phase('水が落ち着く');
+  await animate(1.0, (i) => ({ level: rec.settled[i], cap: rec.capMid[i] }));
+  homes.forEach((h) => { v.buildHouse(h, { hideTop: h.action === 'stack' }); if (h.sunkNow.length) v.houses.get(h.id).sorrow = 0.6; });
+  const sunkN = homes.reduce((s, h) => s + h.sunkNow.length, 0);
+  if (sunkN) { sys(`${sunkN} の章が沈んだ`); v.setMood({ sorrow: Math.min(0.35, sunkN * 0.025) }); }
+  for (const e of ev.filter((x) => x.type === 'displace')) sys(`${homeById(e.home).name}の家が全部沈んだ。${L[e.to].name}へ移った`, 'bad');
+  phase('住人が動いている');
+  homes.forEach((h, k) => {
+    if (h.action === 'reinforce') v.moveFigure(h.id, v.damSpot(h.layer, k), 0, 1);
+    else if (h.action === 'help') v.moveFigure(h.id, v.damSpot(h.target, k), 0, 1);
+    else if (h.action === 'rest') v.houses.get(h.id).sit = 1;
+  });
+  await animate(1.6, (i) => ({ cap: rec.after[i].cap }));
+  homes.forEach((h) => v.buildHouse(h));
+  const tally = { reinforce: 0, help: 0, stack: 0, rest: 0 };
+  homes.forEach((h) => { tally[h.action]++; });
+  sys(`補強 ${tally.reinforce}・手伝い ${tally.help}・積み足し ${tally.stack}・休み ${tally.rest}`);
+  phase('声が聞こえる');
+  v.setMood({ sorrow: 0 });
+  for (const vo of rec.voices) { float(vo.home, vo.text, vo.kind); addMsg(vo); await wait(1.3); }
+  await wait(0.5);
+  homes.forEach((h) => { const H = v.houses.get(h.id); H.sit = 0; H.hammer = 0; H.sorrow = (H.sorrow || 0) * 0.5; v.moveFigure(h.id, H.home); });
+  towns.forEach((s) => v.setTown(s, false));
+  phase('');
+  drawBar(); drawGates(); refreshInspect();
+  busy = false; $('goBtn').disabled = false;
+  if (sim.state.done) { await wait(1.2); clearFloats(); showResult(); }
+}
+$('goBtn').addEventListener('click', season);
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' && e.key !== 'Enter') return;
+  const open = $('intro').classList.contains('show') || $('result').classList.contains('show');
+  if (e.key === 'Enter' && !open) { e.preventDefault(); season(); }
+  if (e.code === 'Space') { e.preventDefault(); speed = 4; }
+  if (e.key === 'q' || e.key === 'Q') v.rotate(-1);
+  if (e.key === 'e' || e.key === 'E') v.rotate(1);
+  if (e.key === 'Escape') $('iClose').click();
+});
+addEventListener('keyup', (e) => { if (e.code === 'Space') speed = 1; });
+
+// ---------- 結果 ----------
+function showResult() {
+  const me = summarize(sim);
+  const rows = [['あなた', me, true], ...Object.entries(POLICIES).map(([k, p]) => [`AI：${p.label}`, runPolicy(seed, k, { voiceLevel })])];
+  $('cmpRows').innerHTML = rows.map(([name, s, mine]) => `<tr class="${mine ? 'me' : ''}"><td>${name}</td><td class="num">${s.sunk}</td><td class="num">${s.bursts}</td><td class="num">${s.town}</td><td class="num">${s.displaced}</td><td class="num">${s.growth >= 0 ? '+' : ''}${s.growth.toFixed(1)}</td><td class="num">${Math.round(s.trust * 100)}%</td></tr>`).join('');
+  $('ringRows').innerHTML = me.byRing.map((g) => `<tr><td>${g.name}</td><td class="num">${g.people}</td><td class="num">${g.received.toFixed(0)}</td><td class="num">${(g.received / Math.max(1, g.people)).toFixed(1)}</td><td class="num">${g.sunk}</td><td class="num">${g.bursts}</td><td class="num">${(g.effort / Math.max(1, g.people)).toFixed(2)}</td></tr>`).join('');
+  const maxS = Math.max(1, ...L.map((l) => l.sunk));
+  drawDial($('resDial'), { values: L.map((l) => l.sunk / maxS * 0.95), labels: L.map((l) => l.sunk), danger: L.map((l) => l.bursts > 0) });
+  const worst = [...L].sort((a, b) => b.sunk - a.sunk)[0];
+  $('resNote').textContent = `いちばん多く沈んだのは ${worst.name}（${worst.sunk} 章）。赤い縁は、一度でも決壊した池。ふもとの町が浸かったのは ${sim.state.towns.map((n, s) => n ? `${SECTORS[s]} ${n} 回` : '').filter(Boolean).join('・') || 'なし'}。`;
+  const acc = sim.state.history.flatMap((r) => r.voices.filter((x) => x.cat === 'accuse'));
+  const hit = acc.filter((x) => x.truth).length;
+  $('accuse').textContent = acc.length ? `よその池への非難が ${acc.length} 回聞こえた。そのうち、その季節に本当に手が少なかったのは ${hit} 回。残りの ${acc.length - hit} 回は、ダムの見え方から生まれた思い込みだった。` : 'よその池への非難は聞こえなかった。';
+  $('result').classList.add('show');
+}
+const go = (s) => { location.search = '?seed=' + (s ?? (1000 + Math.floor(Math.random() * 9000))); };
+$('rSame').addEventListener('click', () => go(seed)); $('rNew').addEventListener('click', () => go());
+$('sameValley').addEventListener('click', () => go(seed)); $('newValley').addEventListener('click', () => go());
+
+// ---------- Options ----------
+$('optBtn').addEventListener('click', () => { const o = $('menu').classList.toggle('open'); $('optBtn').setAttribute('aria-expanded', o); });
+function drawVoices() { document.querySelectorAll('#vlevel button').forEach((b) => b.setAttribute('aria-pressed', Number(b.dataset.v) === voiceLevel)); $('vhint').textContent = VHINT[voiceLevel]; }
+document.querySelectorAll('#vlevel button').forEach((b) => b.addEventListener('click', () => { voiceLevel = Number(b.dataset.v); sim.state.voiceLevel = voiceLevel; try { sessionStorage.setItem('suimon-voices', voiceLevel); } catch {} drawVoices(); }));
+drawVoices();
+$('helpBtn').addEventListener('click', () => $('intro').classList.add('show'));
+$('startBtn').addEventListener('click', () => { $('intro').classList.remove('show'); if (!$('log').children.length) sys('水門に立った。円盤で滝の水を振り分けて「水を流す」', 'event'); });
+
+drawBar(); drawGates();
+if (capture) { window.step = (dt = 1 / 30) => tick(dt); tick(0); window.season = season; }
+else { let last = performance.now(); const loop = (now) => { tick(Math.min(0.05, (now - last) / 1000)); last = now; requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+</script>
+</body>
+</html>
