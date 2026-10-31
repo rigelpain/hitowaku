@@ -180,11 +180,11 @@ import { createJourney } from './journey.js';
 import { COMMON, PARTY_GOAL } from './mind.js';
 
 const LINES = [
-  { at: 9.5, who: 0, mood: { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 }, text: '荷車は置いていけない。食料がないと向こうで全員もたない。' },
-  { at: 14.5, who: 1, shake: 1, mood: { tension: 0.9, sorrow: 0, warmth: 0, hope: 0 }, text: '私は残れません。向こうで子どもたちが待ってるんです。' },
-  { at: 20, who: 4, shake: 0.5, mood: { tension: 0.5, sorrow: 0.3, warmth: 0, hope: 0 }, text: '拾ってもらったわたしが残るべきですよね。でも…ひとりはこわい。' },
-  { at: 25.5, who: 2, sorrow: 1, mood: { tension: 0, sorrow: 1, warmth: 0, hope: 0 }, text: '僕はもう十分歩いたよ。ここに残る。' },
-  { at: 31, who: 3, mood: { tension: 0, sorrow: 0.3, warmth: 0.3, hope: 0.4 }, text: '待って。くじにしません？それなら誰の気持ちも入らないし。' },
+  { at: 9.5, who: 0, mood: { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 }, text: '荷車は乗せる。米、あと三合しかないんだ。' },
+  { at: 14.5, who: 1, shake: 1, mood: { tension: 0.9, sorrow: 0, warmth: 0, hope: 0 }, text: 'はるとくんに、明日の船で行くねって言っちゃったんです。' },
+  { at: 20, who: 4, shake: 0.5, mood: { tension: 0.5, sorrow: 0.3, warmth: 0, hope: 0 }, text: 'わたし、ここでいいです。靴ひもも、もう切れそうだし。' },
+  { at: 25.5, who: 2, sorrow: 1, mood: { tension: 0, sorrow: 1, warmth: 0, hope: 0 }, text: '僕はここでいいよ。ここからなら、まだ町の方角がわかるからね。' },
+  { at: 31, who: 3, mood: { tension: 0, sorrow: 0.3, warmth: 0.3, hope: 0.4 }, text: '待って。くじにしません？フィルムの箱、空いてるのがあるから。' },
 ];
 // 誰に票を入れたか（頭の上には票の行き先だけを出す）
 const VOTES = [['渡瀬 透', '大槻 文雄'], ['春日 灯', '大槻 文雄'], ['大槻 文雄', '大槻 文雄'], ['森 由真', 'くじ'], ['ナギ', '大槻 文雄']];
