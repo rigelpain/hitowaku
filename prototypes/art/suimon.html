@@ -45,11 +45,14 @@
   .panel h4 span { font-weight: 400; color: var(--soft); }
 
   /* 下の操作盤：円盤・選んだまとまり・流れ */
-  #gates { left: 50%; bottom: 12px; transform: translateX(-50%); width: min(860px, calc(100vw - 24px)); display: grid; grid-template-columns: 220px 1fr 180px; }
+  /* 左の列：水門の操作盤。円盤・選んだまとまり・いまの滝を縦に並べる */
+  #gates { left: 12px; top: calc(var(--bar-h, 50px) + 10px); bottom: 12px; width: 260px; display: flex; flex-direction: column; overflow-y: auto; }
   #gates > div { padding: 10px 12px; }
-  .dial svg { width: 196px; height: 196px; display: block; touch-action: none; }
+  #gates > div + div { border-top: 1px solid var(--line); }
+  .dial { display: flex; justify-content: center; }
+  .dial svg { width: 232px; height: 232px; display: block; touch-action: none; }
   .dial .w { cursor: pointer; stroke: var(--paper); stroke-width: 1.5; }
-  .dial .w.sel { stroke: var(--ink); stroke-width: 3; }
+  .dial .w.sel { stroke: var(--ink); stroke-width: 2; }
   .dial .w.danger { stroke: var(--shu); stroke-width: 2.5; }
   .dial text { font-size: 10px; font-weight: 600; pointer-events: none; text-anchor: middle; dominant-baseline: middle; fill: var(--ink); font-family: var(--sans); }
   .dial text.light { fill: var(--paper); }
@@ -62,7 +65,7 @@
   .mode { display: flex; border: 1px solid rgba(30, 27, 34, 0.25); border-radius: 2px; overflow: hidden; align-self: flex-start; }
   .mode button { border: 0; background: transparent; font-size: 11px; padding: 3px 9px; }
   .mode button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-  .sel-detail { border-left: 1px solid var(--line); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+  .sel-detail { display: flex; flex-direction: column; gap: 6px; }
   .sel-detail .head { display: flex; align-items: baseline; gap: 8px; }
   .sel-detail .head b { font-family: var(--mincho); font-size: 18px; }
   .sel-detail .head span { color: var(--soft); font-size: 11px; }
@@ -78,12 +81,14 @@
   .hp.bad i { background: var(--shu); }
   .read { display: flex; justify-content: space-between; color: var(--soft); font-size: 11px; gap: 8px; }
   .read b { color: var(--shu); }
-  .gofoot { display: flex; flex-direction: column; gap: 8px; justify-content: center; font-size: 11px; color: var(--soft); line-height: 1.6; }
+  .gofoot { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--soft); line-height: 1.6; }
   .gofoot .big { font-size: 22px; font-weight: 700; color: var(--ink); line-height: 1.1; }
   .gofoot .ev { color: var(--shu); font-weight: 600; }
 
-  /* 申し出と頼み */
-  #requests { left: 12px; top: calc(var(--bar-h, 50px) + 10px); width: 290px; max-height: 40vh; display: flex; flex-direction: column; }
+  /* 右の列：申し出と頼み・声・詳しいこと */
+  #rightcol { position: fixed; z-index: 10; right: 12px; top: calc(var(--bar-h, 50px) + 10px); bottom: 12px; width: 300px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  #rightcol > .panel { position: static; pointer-events: auto; min-height: 0; }
+  #requests { flex: 0 1 auto; max-height: 34%; display: flex; flex-direction: column; }
   #reqList { overflow-y: auto; padding: 6px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
   #reqList:empty::before { content: 'いまは何も届いていない'; color: var(--soft); font-size: 11px; padding: 4px 2px; }
   .req { background: #FBF6EA; box-shadow: 0 1px 2px rgba(30, 27, 34, 0.15); border-radius: 3px; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; border-left: 3px solid var(--water); }
@@ -98,7 +103,7 @@
   .req .left i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--soft); }
 
   /* 声 */
-  #voices { right: 12px; top: calc(var(--bar-h, 50px) + 10px); width: 300px; height: min(46vh, 440px); display: flex; flex-direction: column; }
+  #voices { flex: 1 1 0; display: flex; flex-direction: column; }
   #log { overflow-y: auto; flex: 1; min-height: 0; padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
   .msg { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; cursor: pointer; }
   .msg .who { font-size: 11px; color: var(--soft); display: flex; align-items: center; gap: 5px; margin-top: 6px; }
@@ -117,7 +122,7 @@
   #log.no-say .say, #log.no-inner .inner, #log.no-muse .muse { display: none; }
 
   /* 池・世帯の詳しいこと（声の下） */
-  #inspect { right: 12px; top: calc(var(--bar-h, 50px) + min(46vh, 440px) + 20px); width: 300px; display: none; max-height: calc(100vh - var(--bar-h, 50px) - min(46vh, 440px) - 250px); overflow-y: auto; }
+  #inspect { flex: 1 1 0; display: none; overflow-y: auto; }
   #inspect.show { display: block; }
   #inspect .body { padding: 10px 12px 12px; }
   #inspect .name { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -152,7 +157,7 @@
   .toast { position: fixed; z-index: 12; left: 50%; top: calc(var(--bar-h, 50px) + 10px); transform: translateX(-50%); background: var(--ink); color: var(--paper); font-size: 13px; padding: 7px 16px; border-radius: 2px; white-space: nowrap; opacity: 0; transition: opacity .25s; pointer-events: none; }
   .toast.show { opacity: 1; }
   .toast.bad { background: var(--shu); }
-  .viewctl { position: fixed; z-index: 9; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .viewctl { position: fixed; z-index: 9; right: 324px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
   .viewctl button { width: 32px; height: 32px; padding: 0; background: var(--panel); border: 0; box-shadow: var(--lift); border-radius: 3px; font-size: 15px; }
 
   /* 出来事・始める前・結果 */
@@ -194,14 +199,14 @@
     .bar { gap: 10px; padding: 7px 10px; flex-wrap: wrap; }
     .dayline, #helpBtn { display: none; }
     .stats dd { font-size: 13px; }
-    #requests { width: calc(50vw - 18px); max-height: 22vh; }
-    #voices { width: calc(50vw - 18px); height: 22vh; }
-    #inspect { left: 12px; right: 12px; width: auto; top: calc(var(--bar-h, 50px) + 22vh + 20px); max-height: 26vh; }
-    #gates { grid-template-columns: 130px 1fr; }
+    /* 狭い画面：操作盤は下に横長、右の列は上に */
+    #gates { top: auto; bottom: 12px; left: 12px; right: 12px; width: auto; flex-direction: row; max-height: 34vh; }
+    #gates > div + div { border-top: 0; border-left: 1px solid var(--line); }
     .dial svg { width: 120px; height: 120px; }
     .gofoot { display: none; }
-    .sel-detail { border-right: 0; }
-    .viewctl { bottom: auto; top: calc(var(--bar-h, 50px) + 22vh + 20px); }
+    #rightcol { left: 12px; width: auto; bottom: calc(34vh + 24px); }
+    #voices { max-height: 18vh; }
+    .viewctl { right: 12px; bottom: calc(34vh + 24px); }
     .choices { grid-template-columns: 2.5em repeat(4, 1fr); }
     .rres { grid-template-columns: 1fr; }
   }
@@ -234,7 +239,6 @@
   </div>
 </header>
 
-<section class="panel" id="requests"><h4>Requests<span id="reqCount">申し出と頼み</span></h4><div id="reqList"></div></section>
 
 <section class="panel" id="gates">
   <div class="dial"><svg id="dial" viewBox="-120 -120 240 240" aria-label="水門の円盤。山を上から見た形で、12 の池が並ぶ"></svg></div>
@@ -242,12 +246,15 @@
   <div class="gofoot" id="flowNote"></div>
 </section>
 
+<div id="rightcol">
+<section class="panel" id="requests"><h4>Requests<span id="reqCount">申し出と頼み</span></h4><div id="reqList"></div></section>
 <section class="panel" id="voices">
   <h4>Voices<div class="filters" id="filters"><button data-k="say" aria-pressed="true">声</button><button data-k="inner" aria-pressed="true">内心</button><button data-k="muse" aria-pressed="true">沈んだ章</button></div></h4>
   <div id="log"></div>
 </section>
 
 <section class="panel" id="inspect"><h4><span id="iTitle"></span><button class="ghost" id="iClose" style="padding:1px 8px">閉じる</button></h4><div class="body" id="iBody"></div></section>
+</div>
 <div id="tags"></div>
 <div class="toast" id="toast"></div>
 <div class="viewctl"><button id="rotL" title="左へ回す（Q）" aria-label="左へ回す">⟲</button><button id="rotR" title="右へ回す（E）" aria-label="右へ回す">⟳</button><button id="zIn" aria-label="近づく">＋</button><button id="zOut" aria-label="離れる">－</button><button id="zHome" aria-label="全体を見る" style="font-size:11px">全体</button></div>
@@ -334,9 +341,11 @@ const selected = () => GROUPS[selKind](selKey);
 const shares = () => { const s = weights.reduce((a, b) => a + b, 0); return s ? weights.map((w) => w / s) : weights.map(() => 1 / N); };
 const RADII = [[24, 50], [52, 78], [80, 104]];
 const angleOf = (s) => -Math.PI / 2 + s * Math.PI / 2;
-function wedge(r0, r1, a0, a1) {
+// 扇形。方角の境のすきま（gap）は、どの半径でも同じ幅のまっすぐな溝になるよう、半径ごとに空ける角度を変える
+function wedge(r0, r1, a0, a1, gap = 0) {
   const p = (r, a) => `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
-  return `M${p(r0, a0)} L${p(r1, a0)} A${r1} ${r1} 0 0 1 ${p(r1, a1)} L${p(r0, a1)} A${r0} ${r0} 0 0 0 ${p(r0, a0)}Z`;
+  const g0 = Math.asin(Math.min(1, gap / r0)), g1 = Math.asin(Math.min(1, gap / r1));
+  return `M${p(r0, a0 + g0)} L${p(r1, a0 + g1)} A${r1} ${r1} 0 0 1 ${p(r1, a1 - g1)} L${p(r0, a1 - g0)} A${r0} ${r0} 0 0 0 ${p(r0, a0 + g0)}Z`;
 }
 function groupName(kind, key) {
   if (kind === 'basin') return L[key].name;
@@ -347,10 +356,10 @@ function groupName(kind, key) {
 function drawDial(svg, { values, labels = [], sel = [], danger = [], interactive = false }) {
   let html = `<g class="hub" data-hub="1"><circle r="21" fill="#3F86B0"/><text y="1" class="light" style="font-size:9px">${interactive ? '全体' : '滝'}</text></g>`;
   L.forEach((l, i) => {
-    const [r0, r1] = RADII[l.ring], a = angleOf(l.sector), g = 0.035;
+    const [r0, r1] = RADII[l.ring], a = angleOf(l.sector);
     const val = values[i];
     const col = val > 1 ? 'rgba(200,69,45,.85)' : `rgba(47,110,140,${0.12 + 0.8 * Math.min(1, val)})`;
-    html += `<path class="w${sel.includes(i) ? ' sel' : ''}${danger[i] ? ' danger' : ''}" data-i="${i}" d="${wedge(r0, r1, a - Math.PI / 4 + g, a + Math.PI / 4 - g)}" fill="${col}"/>`;
+    html += `<path class="w${sel.includes(i) ? ' sel' : ''}${danger[i] ? ' danger' : ''}" data-i="${i}" d="${wedge(r0, r1, a - Math.PI / 4, a + Math.PI / 4, 2.2)}" fill="${col}"/>`;
     const rm = (r0 + r1) / 2;
     if (labels[i] !== undefined) html += `<text x="${(rm * Math.cos(a)).toFixed(1)}" y="${(rm * Math.sin(a)).toFixed(1)}" class="${val > 0.55 ? 'light' : ''}">${labels[i]}</text>`;
   });
