@@ -14,6 +14,14 @@
 //     stereo      思い込みの強さ。自分の見積もりに、実際の歩みがどれだけ引っ張られるか（0〜1）
 //     selfLearn   自分を知る。歩いている体の手応えから、自分の見積もりをどれだけ直すか（0〜1）
 //     depend      人の見方に左右される。人が自分をどう見ているかを、自分の見積もりにどれだけ取り込むか（0〜1）
+//     talk        話しかけやすさ。自分から話を振る頻度と、話しかけられたときに返事をするか（0〜1）
+//
+// 人どうしのやりとり（歩いている間）
+//   affinity[j]   i が j をどれだけ近く感じているか（0〜1）。やりとりで少しずつ動く
+//   声をかける    遅れている人や休んでいる人に「大丈夫？」と聞く。聞かれた人は方針しだいで本音を言うか隠す
+//   付き添う      心配した人が、しばらく相手の横を歩く（intent）
+//   話しかける    自分の目的に関わる話をする。返事があるかで近さが変わる
+//   急ぎたい      一行の目的に乗りきれていない人が、先頭の歩みに不満を持つ。言うか飲み込むかは方針しだい
 //
 // 一行の目的と、一人ひとりの目的
 //   PARTY_GOAL    一行が目指すこと
@@ -29,14 +37,23 @@ export const COMMON = { elder: 0.6, adult: 1.0 };
 export const PARTY_GOAL = '港を出る最後の船に全員で乗る';
 
 export const MINDS = {
-  toru:  { kind: 'adult', goal: '全員を船に乗せる', commit: 0.95, policy: { adapt: 0.9, observe: true,  learn: 0.4, metacog: true,  voice: 'declare', trust: 0.5, stereo: 0.5, selfLearn: 0.3,  depend: 0.2 } },
-  akari: { kind: 'adult', goal: '港町で待つ子どもたちに会う', commit: 0.6, policy: { adapt: 0,   observe: true,  learn: 0.6, metacog: true,  voice: 'hide',    trust: 0.3, stereo: 0.5, selfLearn: 0.3,  depend: 0.5 } },
-  fumio: { kind: 'elder', goal: '港町に住む孫に会う。沈む町を離れたくない気持ちもある', commit: 0.4, policy: { adapt: 0.2, observe: true,  learn: 0,   metacog: true,  voice: 'share',   trust: 0.5, stereo: 0.8, selfLearn: 0.25, depend: 0.7 } },
-  yuma:  { kind: 'adult', goal: '沈む町と旅の記録を残す', commit: 0.5, policy: { adapt: 0.3, observe: false, learn: 0,   metacog: false, voice: 'share',   trust: 0.8, stereo: 0.3, selfLearn: 0.5,  depend: 0.1 } },
-  nagi:  { kind: 'adult', goal: '途中で拾われた。行き先はまだない', commit: 0.3, policy: { adapt: 0.7, observe: true,  learn: 0.3, metacog: false, voice: 'hide',    trust: 0.2, stereo: 0.6, selfLearn: 0.1,  depend: 0.8 } },
+  toru:  { kind: 'adult', goal: '全員を船に乗せる', commit: 0.95, policy: { adapt: 0.9, observe: true,  learn: 0.4, metacog: true,  voice: 'declare', trust: 0.5, stereo: 0.5, selfLearn: 0.3,  depend: 0.2, talk: 0.3 } },
+  akari: { kind: 'adult', goal: '港町で待つ子どもたちに会う', commit: 0.6, policy: { adapt: 0,   observe: true,  learn: 0.6, metacog: true,  voice: 'hide',    trust: 0.3, stereo: 0.5, selfLearn: 0.3,  depend: 0.5, talk: 0.3 } },
+  fumio: { kind: 'elder', goal: '港町に住む孫に会う。沈む町を離れたくない気持ちもある', commit: 0.4, policy: { adapt: 0.2, observe: true,  learn: 0,   metacog: true,  voice: 'share',   trust: 0.5, stereo: 0.8, selfLearn: 0.25, depend: 0.7, talk: 0.4 } },
+  yuma:  { kind: 'adult', goal: '沈む町と旅の記録を残す', commit: 0.5, policy: { adapt: 0.3, observe: false, learn: 0,   metacog: false, voice: 'share',   trust: 0.8, stereo: 0.3, selfLearn: 0.5,  depend: 0.1, talk: 0.9 } },
+  nagi:  { kind: 'adult', goal: '途中で拾われた。行き先はまだない', commit: 0.3, policy: { adapt: 0.7, observe: true,  learn: 0.3, metacog: false, voice: 'hide',    trust: 0.2, stereo: 0.6, selfLearn: 0.1,  depend: 0.8, talk: 0.1 } },
 };
 
 const KIND_JA = { elder: 'お年寄り', adult: '大人' };
+// 自分から振る話。目的や立場がにじむようにする
+const TOPICS = {
+  toru: ['川まではもう少しだ', '食料は足りそうだ'],
+  akari: ['船に間に合うかな', '子どもたち待ってるだろうな'],
+  fumio: ['この道は昔よく通ったんだ', '町が沈むなんてまだ信じられない'],
+  yuma: ['この景色撮っておきたいな', '町の写真あとで見せるね'],
+  nagi: ['この道はどこまで続くんですか'],
+};
+const WARM = ['いいですね', 'そうですね', 'うん楽しみ', 'ほんとに'];
 // 実際の力の幅：一般常識が当たる旅も、外れる旅もある
 const ABILITY_RANGE = { elder: [0.5, 1.0], adult: [0.88, 1.15] };
 const VOICES = ['share', 'declare', 'hide'];
@@ -74,6 +91,8 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       seen: people.map(() => ({ sum: 0, n: 0, avg: null })),
       noticed: new Set(),
       pace: null, saidSelf: false, selfStart: COMMON[m.kind], selfNoticed: false,
+      affinity: people.map((q) => (q.id === 'nagi' || p.id === 'nagi' ? 0.2 : 0.3) + r() * 0.35),
+      intent: null, rushed: false, cool: people.map(() => 0), easeUntil: 0,
     };
   });
 
@@ -118,7 +137,9 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     minds.forEach((o) => { if (o !== m) slow = Math.min(slow, m.belief[o.i]); });
     // 一行の目的に乗っていない人ほど、人に合わせて歩みを落としにくい
     const a = m.policy.adapt * (0.4 + 0.6 * m.commit);
-    return Math.min(own, (1 - a) * own + a * slow);
+    // 先頭が「少しゆっくり行こう」と言ったあと、しばらく一行の歩みを落とす
+    const ease = m.easeUntil > now ? 0.8 : 1;
+    return Math.min(own, (1 - a) * own + a * slow) * ease;
   }
 
   // 誰を見ているか：遅いと思っている人がいればその人、いなければ歩みを決めている先頭
@@ -128,9 +149,14 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     return m.i === leader ? null : minds[leader];
   }
 
-  // 歩いている間、毎フレーム呼ぶ。speeds[j] は j の実際の速さ（PACE に対する比）、moving[j] は歩いているか
+  // 歩いている間、毎フレーム呼ぶ。speeds[j] は j の実際の速さ（PACE に対する比）、moving[j] は歩いているか、
+  // behind[j] は j が列のいつもの位置からどれだけ遅れているか、acts[j] は j がいましていること（rest・pause など）
   let acc = 0;
-  function tick(t, dt, speeds, moving) {
+  let leadPace = null; // 先頭の歩みは、誰の目にも入る
+  let now = 0;
+  function tick(t, dt, speeds, moving, behind = [], acts = []) {
+    now = t;
+    if (moving[leader]) leadPace = leadPace === null ? speeds[leader] : leadPace + (speeds[leader] - leadPace) * Math.min(1, dt);
     minds.forEach((m) => {
       const o = watching(m);
       if (!m.policy.observe || !o || !moving[o.i]) return; // 立ち止まって休んでいる間は、歩く速さとして数えない
@@ -154,6 +180,8 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       // 自分を知る：歩いている体の手応えで、自分の見積もりが実際の力に寄っていく
       if (moving[m.i] && m.policy.selfLearn > 0) m.belief[m.i] += m.policy.selfLearn * 0.25 * (m.ability - m.belief[m.i]);
       noticeSelf(t, m);
+      // 急ぎたい：自分ならもっと速く歩けるのに、先頭が遅いと感じる
+      if (t >= 3 && m.i !== leader && !m.rushed && m.commit < 0.7 && leadPace !== null && ownPace(m) > leadPace + 0.25) rush(t, m);
       // 歩みの調整：前に出した速さから目に見えて変わったら、行動として記録する
       const p = pace(m.i);
       if (m.pace === null) m.pace = p;
@@ -162,6 +190,96 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
         m.pace = p;
       }
     });
+    interact(t, behind, acts);
+  }
+
+  // ---------- 人どうしのやりとり ----------
+  const busy = (m, t) => m.intent && m.intent.until > t;
+  const near = (a, b, d) => { a.affinity[b.i] = clamp01(a.affinity[b.i] + d); };
+  function accompany(t, m, o, secs, why) {
+    m.intent = { with: o.i, until: t + secs, why };
+    emit(t, m, 'act', `${o.first}さんの横を歩く（${why}）`, { aware: m.policy.metacog, short: why });
+  }
+
+  // 新しいやりとりは 1 秒に 1 つまで（同時に話し出さない）
+  function interact(t, behind, acts) {
+    let done = false;
+    // 声をかける：遅れている人、休んでいる人
+    minds.forEach((o) => {
+      if (done || o.i === leader) return;
+      const lagging = (behind[o.i] ?? 0) > 1.8 || acts[o.i] === 'rest' || acts[o.i] === 'pause';
+      if (!lagging || t < o.cool[o.i] || busy(o, t)) return;
+      let helper = null, best = -1;
+      minds.forEach((m) => {
+        if (m === o || busy(m, t) || !m.policy.observe || m.commit < 0.5) return;
+        const score = m.affinity[o.i] + m.commit;
+        if (score > best) { best = score; helper = m; }
+      });
+      if (!helper) return;
+      o.cool[o.i] = t + 10;
+      checkIn(t, helper, o);
+      done = true;
+    });
+    // 話しかける
+    minds.forEach((m) => {
+      if (done || busy(m, t) || r() > m.policy.talk * 0.12) return;
+      const others = minds.filter((o) => o !== m && !busy(o, t));
+      if (!others.length) return;
+      let sum = others.reduce((a, o) => a + m.affinity[o.i] + 0.2, 0), pick = r() * sum, o = others[0];
+      for (const q of others) { pick -= m.affinity[q.i] + 0.2; if (pick <= 0) { o = q; break; } }
+      chat(t, m, o);
+      done = true;
+    });
+  }
+
+  function checkIn(t, m, o) {
+    say(t, m, `${o.first}さん、大丈夫？`);
+    let worried = false;
+    if (!o.policy.metacog) say(t, o, 'うん');
+    else if (o.policy.voice === 'share') { say(t, o, '少し休みたい'); worried = true; }
+    else if (o.policy.voice === 'declare') say(t, o, '先に行っていいよ');
+    else { say(t, o, '大丈夫'); emit(t, o, 'inner', '本当は少し疲れている'); }
+    // 言葉と見た目のずれ：観察する人は、遅れていることを自分の目でも見ている
+    if (!worried && m.policy.observe) {
+      worried = true;
+      if (m.policy.metacog) emit(t, m, 'inner', '大丈夫って言うけど遅れている');
+    }
+    near(o, m, 0.1); near(m, o, 0.05);
+    if (o.policy.voice === 'declare' && o.policy.metacog) {
+      if (m.commit >= 0.8) { say(t, m, '置いていかないよ'); if (m.i === leader) m.easeUntil = t + 5; else accompany(t, m, o, 6, '付き添う'); }
+      else if (m.policy.metacog) emit(t, m, 'inner', '本人がそう言うなら');
+      return;
+    }
+    if (!worried) return;
+    // 先頭は列を離れず、一行全体の歩みを落とす
+    if (m.i === leader) { say(t, m, '少しゆっくり行こう'); m.easeUntil = t + 5; return; }
+    if (m.policy.adapt >= 0.3 || m.affinity[o.i] >= 0.5) accompany(t, m, o, 6, '付き添う');
+  }
+
+  function chat(t, m, o) {
+    const lines = TOPICS[m.id];
+    say(t, m, `${o.first}さん、${lines[Math.floor(r() * lines.length)]}`);
+    if (o.policy.talk < 0.2 && o.affinity[m.i] < 0.45) {
+      // 返事をしない。自覚があれば、言葉が出なかったことが内心に残る
+      if (o.policy.metacog) emit(t, o, 'inner', '何て返せばいいか分からない');
+      if (m.policy.metacog) emit(t, m, 'inner', '返事がない');
+      near(m, o, -0.03);
+      return;
+    }
+    say(t, o, o.affinity[m.i] > 0.55 ? WARM[Math.floor(r() * WARM.length)] : 'うん');
+    near(m, o, 0.08); near(o, m, 0.06);
+    accompany(t, m, o, 5, '話しながら歩く');
+  }
+
+  // 急ぎたい人：言うか飲み込むか。言われた先頭は、一行の目的に乗る度合いで答える
+  function rush(t, m) {
+    m.rushed = true;
+    const L = minds[leader];
+    if (!m.policy.metacog) { emit(t, m, 'act', '足が前へ出がちになる', { aware: false, short: '足が前へ出る' }); return; }
+    if (m.policy.voice === 'hide') { emit(t, m, 'inner', '本当はもっと急ぎたいのに'); return; }
+    say(t, m, `${L.first}さん、もう少し急げませんか。船に間に合わないかも`);
+    if (L.commit >= 0.7) { say(t, L, '全員で行こう'); near(m, L, -0.05); if (m.policy.metacog) emit(t, m, 'inner', '急ぎたいのに'); }
+    else { say(t, L, 'そうだね。少し急ごう'); L.policy.adapt = Math.max(0, L.policy.adapt - 0.3); near(m, L, 0.05); }
   }
 
   // 見積もりと実際とのずれに気づいたとき
@@ -222,5 +340,6 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     });
   }
 
-  return { minds, log, start, tick, pace, ownPace, watching, onLog: (f) => listeners.push(f) };
+  const intent = (i, t) => (busy(minds[i], t) ? minds[i].intent : null);
+  return { minds, log, start, tick, pace, ownPace, watching, intent, onLog: (f) => listeners.push(f) };
 }

@@ -131,20 +131,20 @@
 </head>
 <body>
 <canvas id="c"></canvas>
-<div class="card" id="card"><h2>The bridge is out</h2><dl class="facts"><div><dt>Boat</dt><dd>1</dd></div><div><dt>Seats</dt><dd>4 + cart</dd></div><div><dt>Trips</dt><dd>1</dd></div></dl><p class="outcome">One person stays behind</p></div>
-<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Ship in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>Majority vote</b><div class="tally" id="tally"></div></div><div class="opts" id="opts"><button id="optBtn" aria-expanded="false">Options</button><div class="menu"><p>Show</p><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div><p>Journey <span id="seedLabel"></span></p><div class="row"><button id="about">About</button><button id="newJourney">New journey</button></div></div></div></div>
+<div class="card" id="card"><h2>橋が落ちている</h2><dl class="facts"><div><dt>Boat</dt><dd>1</dd></div><div><dt>Seats</dt><dd>4 + cart</dd></div><div><dt>Trips</dt><dd>1</dd></div></dl><p class="outcome">一人はこの岸に残る</p></div>
+<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Ship in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>多数決</b><div class="tally" id="tally"></div></div><div class="opts" id="opts"><button id="optBtn" aria-expanded="false">Options</button><div class="menu"><p>Show</p><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div><p>Journey <span id="seedLabel"></span></p><div class="row"><button id="about">About</button><button id="newJourney">New journey</button></div></div></div></div>
 <section class="side" id="mindPanel"><h4>Minds<span><button id="toAuto">Back to AI</button> <button id="restart">Restart</button></span></h4><p class="note">ふだんは AI が旅ごとに決めます。動かした値は、あなたの決めた値として次のやり直しにも残ります。</p><div class="legend"><span><i style="background:var(--ink)"></i>見積もり</span><span><i style="background:var(--shu)"></i>一般常識</span><span><i style="background:#7FA05E"></i>実際</span></div><div id="minds"></div></section>
 <section class="side" id="logPanel"><h4>Log</h4><div id="log"></div></section>
 <section class="intro" id="intro"><div>
-  <h1>Last Ship</h1>
+  <h1>最後の船</h1>
   <p class="world">川上の町は、来月ダムの底に沈みます。住んでいた人たちは、それぞれの行き先へ散っていきました。この一行は、海辺の港から出る最後の船を目指して歩いています。</p>
   <dl class="facts"><div class="goal"><dt>Party goal</dt><dd id="partyGoal"></dd></div><div><dt>Ship leaves in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div></dl>
   <table class="members"><thead><tr><th>Member</th><th>Own goal</th><th>With the party</th></tr></thead><tbody id="members"></tbody></table>
   <p class="how">一人ひとりは AI が動かします。誰が何を考え、どう決めるかを見てください。頭の中は Options から見られます。</p>
   <div class="go"><span id="introSeed"></span><button id="start">Start</button></div>
 </div></section>
-<div class="caption" id="caption">大槻 文雄 stayed behind</div>
-<div class="ask" id="ask"><h3>Was this the right way to decide?</h3><button>Choose the rule next time</button><button class="sub">Journey log</button></div>
+<div class="caption" id="caption">大槻 文雄さんとここで別れた</div>
+<div class="ask" id="ask"><h3>この決め方でよかった？</h3><button>次は決め方を自分で選ぶ</button><button class="sub">旅の記録を見る</button></div>
 <script type="module">
 import { createJourney } from './journey.js';
 import { COMMON, PARTY_GOAL } from './mind.js';
@@ -153,11 +153,11 @@ const LINES = [
   { at: 9.5, who: 0, mood: { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 }, text: '荷車は置いていけない。食料がないと向こうで全員もたない。' },
   { at: 14.5, who: 1, shake: 1, mood: { tension: 0.9, sorrow: 0, warmth: 0, hope: 0 }, text: '私は残れません。向こうで子どもたちが待ってるんです。' },
   { at: 20, who: 4, shake: 0.5, mood: { tension: 0.5, sorrow: 0.3, warmth: 0, hope: 0 }, text: '拾ってもらった私が残るべきですよね。でもひとりはこわい。' },
-  { at: 25.5, who: 2, sorrow: 1, rain: 0.8, mood: { tension: 0, sorrow: 1, warmth: 0, hope: 0 }, text: '足の悪い僕が乗るとボートが重くなる。僕が残るよ。' },
+  { at: 25.5, who: 2, sorrow: 1, mood: { tension: 0, sorrow: 1, warmth: 0, hope: 0 }, text: '足の悪い僕が乗るとボートが重くなる。僕が残るよ。' },
   { at: 31, who: 3, mood: { tension: 0, sorrow: 0.3, warmth: 0.3, hope: 0.4 }, text: '待って。くじにしませんか。それなら誰の気持ちも入らない。' },
 ];
 // 誰に票を入れたか（頭の上には票の行き先だけを出す）
-const VOTES = [['渡瀬 透', '大槻 文雄'], ['春日 灯', '大槻 文雄'], ['大槻 文雄', '大槻 文雄'], ['森 由真', 'Lottery'], ['ナギ', '大槻 文雄']];
+const VOTES = [['渡瀬 透', '大槻 文雄'], ['春日 灯', '大槻 文雄'], ['大槻 文雄', '大槻 文雄'], ['森 由真', 'くじ'], ['ナギ', '大槻 文雄']];
 
 const bubbles = [];
 const floats = [];
@@ -243,8 +243,7 @@ function say(line) {
   u.shake = line.shake || 0;
   if (line.sorrow) u.sorrow = line.sorrow;
   j.state.speaker = line.who;
-  Object.assign(j.state.moodTarget, line.mood);
-  if (line.rain) j.state.rainTarget = line.rain;
+  // 感情は吹き出しの字と本人の姿勢だけで表す。天気や画面全体の色には出さない（本当に天気が変わったように見えるため）
   setTimeout(() => { b.shake = 0; }, 99999);
 }
 
@@ -254,7 +253,7 @@ const events = [
   [7.0, () => $('card').classList.add('show')],
   [9.0, () => $('card').classList.add('docked')],
   ...LINES.map((l) => [l.at, () => say(l)]),
-  [36.5, () => { bubbles.forEach((b) => b.el.classList.remove('show')); j.state.speaker = null; Object.assign(j.state.moodTarget, { tension: 0.3, sorrow: 0.2, warmth: 0, hope: 0 }); j.figures.forEach((f) => { f.userData.shake = 0; }); $('card').classList.remove('show'); $('rule').classList.add('show'); }],
+  [36.5, () => { bubbles.forEach((b) => b.el.classList.remove('show')); j.state.speaker = null; j.figures.forEach((f) => { f.userData.shake = 0; }); $('card').classList.remove('show'); $('rule').classList.add('show'); }],
   ...VOTES.map(([, to], k) => [37.2 + k * 0.7, () => {
     const el = document.createElement('div'); el.className = 'vote'; el.textContent = to; document.body.appendChild(el);
     votes.push({ el, i: [0, 1, 2, 3, 4][k] });
@@ -274,7 +273,6 @@ const events = [
     j.setCamX(j.RIVER[0] + 0.5); j.state.boatMode = true;
     j.state.speaker = 2;
     $('party').textContent = '4';
-    Object.assign(j.state.moodTarget, { tension: 0, sorrow: 0.8, warmth: 0, hope: 0 });
   }],
   [45.5, () => { j.state.boatTarget = j.RIVER[1] - 0.2; $('rule').classList.remove('show'); }],
   [50, () => $('caption').classList.add('show')],
@@ -388,7 +386,7 @@ $('seedLabel').textContent = '#' + seed;
 
 // 旅の前の説明：世界、一行の目的、一人ひとりの目的と、一行の目的に乗る度合い
 $('partyGoal').textContent = PARTY_GOAL;
-$('introSeed').textContent = 'Journey #' + seed + (Object.keys(saved).length ? '　あなたの決めた方針あり' : '');
+$('introSeed').textContent = 'Journey #' + seed + (Object.keys(saved).length ? '　あなたが決めた方針あり' : '');
 $('members').innerHTML = j.minds.minds.map((m) => `<tr><td>${m.name}</td><td>${m.goal}</td><td><span class="commit"><i style="width:${m.commit * 100}%"></i></span></td></tr>`).join('');
 const openIntro = () => { paused = true; $('intro').classList.add('show'); };
 $('start').addEventListener('click', () => { paused = false; $('intro').classList.remove('show'); });

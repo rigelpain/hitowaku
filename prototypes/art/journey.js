@@ -242,6 +242,14 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
         }
       }
       if (g.kind !== 'hurry' && g.kind !== 'wander' && -behind > 0.6) v *= clamp(1 + (behind + 0.6) * 0.8, 0.2, 1);
+      // 付き添う・話しながら歩く：相手の横に寄って、相手の速さに合わせる
+      const it = minds.intent(i, state.t);
+      if (it) {
+        const q = figures[it.with].userData;
+        tz = q.z + (u.z >= q.z ? 0.5 : -0.5);
+        v = clamp(q.v + (q.x - u.x) * 1.5, 0, PACE * 2);
+        if (q.v < 0.1 && Math.abs(q.x - u.x) < 0.6) { v = 0; face = Math.atan2(q.x - u.x, q.z - u.z); }
+      }
     } else {
       // 立ち止まった：それぞれの立ち位置まで歩き、話している人のほうを向く
       if (u.spotX === undefined) { u.spotX = anchorX(i) + g.spot[0]; u.spotZ = 5 + g.spot[1]; u.act = 'go'; }
@@ -280,7 +288,7 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
       if (!state.started) { state.started = true; minds.start(state.t); }
       // 一行の進みは先頭（透）の歩みで決まる
       state.caravanX += dt * PACE * minds.pace(0);
-      minds.tick(state.t, dt, figures.map((f) => f.userData.v / PACE), figures.map((f) => f.userData.v > 0.4));
+      minds.tick(state.t, dt, figures.map((f) => f.userData.v / PACE), figures.map((f) => f.userData.v > 0.4), figures.map((f) => anchorX(f.userData.i) - f.userData.x), figures.map((f) => f.userData.act));
       if (state.caravanX >= state.arriveX) { state.walking = false; state.arrivedAt = state.t; }
     }
     figures.forEach((f) => {
