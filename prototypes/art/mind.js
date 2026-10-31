@@ -42,7 +42,7 @@
 //
 // 速さはすべて、一行の標準の速さ PACE に対する比で表す。
 
-import { ja, call, warmReply, flatReply, topic, museBank } from './voice.js';
+import { ja, call, topic, reply, museBank } from './voice.js';
 
 export const COMMON = { elder: 0.6, adult: 1.0 };
 export const PARTY_GOAL = '港を出る最後の船に全員で乗る';
@@ -220,8 +220,11 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
   const museGap = (m) => (3 + r() * 4) * (1.4 - m.inner.reminisce);
   function muse(t, m, tag) {
     if (depth === 0) return;
-    const others = minds.filter((o) => o !== m).map((o) => o.id);
-    const tags = [tag, ...(r() < 0.4 ? others.sort(() => r() - 0.5) : []), 'free', 'road'].filter(Boolean);
+    // 目に入ったもの 3 割、関心事 5 割、ほかの人のこと 2 割。歩く速さのことばかり考えないようにする
+    const others = minds.filter((o) => o !== m).map((o) => o.id).sort(() => r() - 0.5);
+    const roll = r();
+    const first = roll < 0.3 ? [tag] : roll < 0.8 ? ['concern'] : others;
+    const tags = [...first, 'concern', 'free', 'road'].filter(Boolean);
     let text = pick(m, tags);
     if (!text) return;
     m.mused.add(text);
@@ -275,7 +278,7 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       if (!lagging || t < o.cool[o.i] || busy(o, t)) return;
       let helper = null, best = -1;
       minds.forEach((m) => {
-        if (m === o || busy(m, t) || !m.policy.observe || m.commit < 0.5) return;
+        if (m === o || busy(m, t) || !m.policy.observe || m.commit < 0.5 || t < (m.helpedAt ?? -99) + 7) return; // 声をかけたばかりの人は、しばらく間を空ける
         const score = m.affinity[o.i] + m.commit;
         if (score > best) { best = score; helper = m; }
       });
@@ -298,6 +301,7 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
 
   // lingering：疲れではなく、何かに見入ったり振り返ったりして止まっていた
   function checkIn(t, m, o, lingering = false) {
+    m.helpedAt = t;
     say(t, m, ja(m, 'checkIn', o));
     let worried = false;
     if (!o.policy.metacog) say(t, o, ja(o, 'replyFlat'));
@@ -322,12 +326,13 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     }
     if (!worried) return;
     // 先頭は列を離れず、一行全体の歩みを落とす
-    if (m.i === leader) { say(t, m, ja(m, 'easeUp')); m.easeUntil = t + 5; return; }
+    if (m.i === leader) { if (m.easeUntil < t) say(t, m, ja(m, 'easeUp')); m.easeUntil = t + 5; return; }
     if (m.policy.adapt >= 0.3 || m.affinity[o.i] >= 0.5) accompany(t, m, o, 6, '付き添う');
   }
 
   function chat(t, m, o) {
-    say(t, m, `${call(m, o)}、${topic(m, r, o)}`);
+    const tp = topic(m, r, o);
+    say(t, m, `${call(m, o)}、${tp.text}`);
     if (o.policy.talk < 0.2 && o.affinity[m.i] < 0.45) {
       // 返事をしない。自覚があれば、言葉が出なかったことが内心に残る
       if (o.policy.metacog) emit(t, o, 'inner', ja(o, 'noReplyInner'));
@@ -335,7 +340,7 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       near(m, o, -0.03);
       return;
     }
-    say(t, o, o.affinity[m.i] > 0.55 ? warmReply(o, r) : flatReply(o));
+    say(t, o, reply(o, tp.kind, o.affinity[m.i] > 0.55, r));
     near(m, o, 0.08); near(o, m, 0.06);
     accompany(t, m, o, 5, '話しながら歩く');
   }
