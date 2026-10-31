@@ -15,7 +15,7 @@
   .bar { position: fixed; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 22px; padding: 10px 20px; background: var(--panel); font-size: 15px; }
   .bar b { font-size: 16px; font-weight: 600; }
   .bar b, .facts div, .rule > *, .tally span { white-space: nowrap; }
-  .bar { flex-wrap: wrap; row-gap: 6px; }
+  .bar { flex-wrap: wrap; row-gap: 6px; z-index: 20; }
   .facts { display: flex; gap: 16px; margin: 0; }
   .facts div { display: flex; gap: 6px; align-items: baseline; }
   .facts dt { font-size: 12px; color: var(--soft); }
@@ -101,23 +101,34 @@
   .float.muse { color: #4A463F; background: rgba(237, 230, 211, 0.75); font-size: 12px; max-width: 14em; white-space: normal; width: max-content; }
   body:not(.show-inner) .float.muse,
   body:not(.show-inner) .float.inner, body:not(.show-inner) .float.act, body:not(.show-talk) .float.say { display: none; }
-  .side { position: fixed; z-index: 5; right: 12px; width: min(340px, calc(100vw - 24px)); background: var(--panel); box-shadow: var(--lift); font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; font-size: 12px; display: none; }
-  .side h4 { margin: 0; padding: 8px 12px 6px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
-  body.show-log #logPanel, body.show-minds #mindPanel { display: block; }
-  #logPanel { bottom: 12px; height: 34vh; display: none; flex-direction: column; }
-  body.show-log #logPanel { display: flex; }
-  #log { overflow-y: auto; padding: 0 12px 10px; flex: 1; }
-  #log div { display: grid; grid-template-columns: 2.6em 4.4em 3.2em 1fr; gap: 6px; padding: 2px 0; border-top: 1px solid rgba(30, 27, 34, 0.08); }
-  #log .t { color: var(--soft); font-variant-numeric: tabular-nums; }
-  #log .k { color: var(--soft); }
-  #log .say .x { font-weight: 600; }
-  #log .act .x { color: var(--shu); }
-  #log .muse .x { color: #4A463F; }
+  .sidebar { position: fixed; z-index: 5; right: 12px; top: var(--bar-h, 56px); bottom: 12px; width: min(360px, calc(100vw - 24px)); display: none; flex-direction: column; gap: 8px; pointer-events: none; }
+  body.show-log .sidebar, body.show-minds .sidebar { display: flex; }
+  .side { background: var(--panel); box-shadow: var(--lift); font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; font-size: 12px; display: none; flex-direction: column; flex: 1 1 0; min-height: 0; pointer-events: auto; }
+  body.show-minds #mindPanel, body.show-log #logPanel { display: flex; }
+  .side h4 { margin: 0; padding: 8px 12px 6px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #minds { overflow-y: auto; min-height: 0; flex: 1; }
+  /* 履歴：チャットのように、人ごとの吹き出しを並べる */
+  #log { overflow-y: auto; min-height: 0; flex: 1; padding: 2px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .msg { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .msg .who { font-size: 11px; color: var(--soft); display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+  .msg .who i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .msg .who b { color: var(--ink); font-weight: 600; }
+  .msg .who time { font-variant-numeric: tabular-nums; }
+  .msg .text { padding: 6px 10px; border-radius: 10px; font-size: 13px; line-height: 1.55; max-width: 88%; }
+  .msg.say .text { background: #FBF6EA; box-shadow: 0 1px 2px rgba(30, 27, 34, 0.15); }
+  .msg.inner .text { border: 1px dashed rgba(30, 27, 34, 0.4); color: #3B3833; }
+  .msg.muse .text { background: rgba(30, 27, 34, 0.06); color: #4A463F; }
+  .sys { align-self: center; max-width: 92%; text-align: center; font-size: 11px; color: var(--soft); margin: 4px 0; }
+  .sys.act { color: var(--shu); }
+  .sys.event { color: var(--ink); font-weight: 600; font-size: 12px; margin: 10px 0 4px; }
+  .sys.unaware::after { content: '（自覚なし）'; color: var(--soft); }
+  .filters { display: flex; gap: 4px; font-weight: 400; }
+  .filters button { font: inherit; font-size: 11px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; color: var(--soft); padding: 1px 7px; border-radius: 10px; cursor: pointer; }
+  .filters button[aria-pressed="true"] { background: rgba(30, 27, 34, 0.1); color: var(--ink); border-color: rgba(30, 27, 34, 0.5); }
+  #log.no-say .say, #log.no-inner .inner, #log.no-muse .muse, #log.no-act .act, #log.no-act .hear { display: none; }
   .depth button[aria-pressed="true"] { background: rgba(30, 27, 34, 0.1); border-color: rgba(30, 27, 34, 0.5); }
   .menu .hint { margin: 4px 0 0; font-size: 11px; line-height: 1.5; }
-  #log .unaware .x::after { content: ' 自覚なし'; color: var(--soft); font-size: 11px; }
   .side h4 button { font: inherit; font-size: 12px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; padding: 2px 8px; border-radius: 2px; cursor: pointer; }
-  #mindPanel { top: 56px; max-height: calc(100vh - 140px - 34vh); overflow-y: auto; }
   .mind { padding: 8px 12px; border-top: 1px solid rgba(30, 27, 34, 0.1); }
   .mind .head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
   .mind .head b { font-weight: 600; }
@@ -142,8 +153,8 @@
 <canvas id="c"></canvas>
 <div class="card" id="card"><h2>橋が落ちている</h2><dl class="facts"><div><dt>Boat</dt><dd>1</dd></div><div><dt>Seats</dt><dd>4 + cart</dd></div><div><dt>Trips</dt><dd>1</dd></div></dl><p class="outcome">一人はこの岸に残る</p></div>
 <div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Ship in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>多数決</b><div class="tally" id="tally"></div></div><div class="opts" id="opts"><button id="optBtn" aria-expanded="false">Options</button><div class="menu"><p>Show</p><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div><p>Depth</p><div class="row depth" id="depth"><button data-d="0">0</button><button data-d="1">1</button><button data-d="2">2</button><button data-d="3">3</button></div><p class="hint" id="depthHint"></p><p>Journey <span id="seedLabel"></span></p><div class="row"><button id="about">About</button><button id="newJourney">New journey</button></div></div></div></div>
-<section class="side" id="mindPanel"><h4>Minds<span><button id="toAuto">Back to AI</button> <button id="restart">Restart</button></span></h4><p class="note">ふだんは AI が旅ごとに決めます。動かした値は、あなたの決めた値として次のやり直しにも残ります。</p><div class="legend"><span><i style="background:var(--ink)"></i>見積もり</span><span><i style="background:var(--shu)"></i>一般常識</span><span><i style="background:#7FA05E"></i>実際</span></div><div id="minds"></div></section>
-<section class="side" id="logPanel"><h4>Log</h4><div id="log"></div></section>
+<aside class="sidebar"><section class="side" id="mindPanel"><h4>Minds<span><button id="toAuto">Back to AI</button> <button id="restart">Restart</button></span></h4><p class="note">ふだんは AI が旅ごとに決めます。動かした値は、あなたの決めた値として次のやり直しにも残ります。</p><div class="legend"><span><i style="background:var(--ink)"></i>見積もり</span><span><i style="background:var(--shu)"></i>一般常識</span><span><i style="background:#7FA05E"></i>実際</span></div><div id="minds"></div></section>
+<section class="side" id="logPanel"><h4>Log<span class="filters" id="filters"><button data-f="say" aria-pressed="true">発話</button><button data-f="inner" aria-pressed="true">内心</button><button data-f="muse" aria-pressed="true">思い</button><button data-f="act" aria-pressed="true">行動</button></span></h4><div id="log"></div></section></aside>
 <section class="intro" id="nogl"><div>
   <h1>3D を描けませんでした</h1>
   <p class="world">このブラウザでは、いま WebGL（3D の描画）が使えない状態です。多くの場合、ブラウザの設定で GPU が使われていないことが原因です。</p>
@@ -283,6 +294,7 @@ function say(line) {
   u.shake = line.shake || 0;
   if (line.sorrow) u.sorrow = line.sorrow;
   j.state.speaker = line.who;
+  addLog({ t: j.state.t, who: line.who, name: j.figures[line.who].userData.name, kind: 'say', text: line.text });
   // 感情は吹き出しの字、本人の姿勢、画面全体の色で表す。天気には出さない（心境なのか本当の天気なのか分からなくなるため）
   Object.assign(j.state.moodTarget, line.mood);
   setTimeout(() => { b.shake = 0; }, 99999);
@@ -291,13 +303,14 @@ function say(line) {
 const votes = [];
 const $ = (id) => document.getElementById(id);
 const events = [
-  [7.0, () => $('card').classList.add('show')],
+  [7.0, () => { $('card').classList.add('show'); note('橋が落ちている。ボートは一度だけ、乗れるのは4人と荷車。一人はこの岸に残る'); }],
   [9.0, () => $('card').classList.add('docked')],
   ...LINES.map((l) => [l.at, () => say(l)]),
-  [36.5, () => { bubbles.forEach((b) => b.el.classList.remove('show')); j.state.speaker = null; Object.assign(j.state.moodTarget, { tension: 0.3, sorrow: 0.2, warmth: 0, hope: 0 }); j.figures.forEach((f) => { f.userData.shake = 0; }); $('card').classList.remove('show'); $('rule').classList.add('show'); }],
+  [36.5, () => { bubbles.forEach((b) => b.el.classList.remove('show')); j.state.speaker = null; Object.assign(j.state.moodTarget, { tension: 0.3, sorrow: 0.2, warmth: 0, hope: 0 }); j.figures.forEach((f) => { f.userData.shake = 0; }); $('card').classList.remove('show'); $('rule').classList.add('show'); note('決め方：多数決'); }],
   ...VOTES.map(([, to], k) => [37.2 + k * 0.7, () => {
     const el = document.createElement('div'); el.className = 'vote'; el.textContent = to; document.body.appendChild(el);
     votes.push({ el, i: [0, 1, 2, 3, 4][k] });
+    addLog({ t: j.state.t, who: k, name: j.figures[k].userData.name, kind: 'vote', text: `${to}に一票` });
     void el.offsetWidth; el.classList.add('show');
   }]),
   [41.2, () => {
@@ -305,6 +318,7 @@ const events = [
     VOTES.forEach(([, to]) => { count[to] = (count[to] || 0) + 1; });
     const rows = Object.entries(count).sort((a, b) => b[1] - a[1]);
     $('tally').innerHTML = rows.map(([to, n], k) => `<span class="${k ? '' : 'top'}">${to}${'<i></i>'.repeat(n)}</span>`).join('');
+    note(rows.map(([to, n]) => `${to} ${n}票`).join('　'));
   }],
   [44, () => {
     votes.forEach((v) => v.el.classList.remove('show'));
@@ -317,7 +331,7 @@ const events = [
     Object.assign(j.state.moodTarget, { tension: 0, sorrow: 0.8, warmth: 0, hope: 0 });
   }],
   [45.5, () => { j.state.boatTarget = j.RIVER[1] - 0.2; $('rule').classList.remove('show'); }],
-  [50, () => $('caption').classList.add('show')],
+  [50, () => { $('caption').classList.add('show'); note('大槻 文雄さんとここで別れた'); }],
   [54, () => { $('caption').classList.remove('show'); $('ask').classList.add('show'); }],
 ];
 let ei = 0;
@@ -363,15 +377,49 @@ function float(e) {
   document.body.appendChild(el);
   floats[e.who] = { el, until: j.state.t + (cls === 'say' ? 3.2 : cls === 'muse' ? 3.6 : 2.6) };
 }
+// 履歴：同じ人が同じ種類で続けて話すときは、名前を省いて吹き出しだけ足す
 const logEl = $('log');
+let lastMsg = null;
 function addLog(e) {
-  const row = document.createElement('div');
-  row.className = e.kind + (e.aware === false ? ' unaware' : '');
-  row.innerHTML = `<span class="t">${e.t.toFixed(1)}</span><span>${e.name}</span><span class="k">${KIND[e.kind]}</span><span class="x"></span>`;
-  row.querySelector('.x').textContent = e.text;
-  logEl.appendChild(row);
-  logEl.scrollTop = logEl.scrollHeight;
+  const stick = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40; // 読み返しているときは勝手に下へ送らない
+  if (e.kind === 'act' || e.kind === 'hear' || e.kind === 'event' || e.kind === 'vote') {
+    const row = document.createElement('div');
+    row.className = 'sys ' + e.kind + (e.aware === false ? ' unaware' : '');
+    row.textContent = e.kind === 'event' ? e.text : `${e.name.split(' ').pop()}：${e.text}`;
+    logEl.appendChild(row);
+    lastMsg = null;
+  } else {
+    if (!lastMsg || lastMsg.who !== e.who || lastMsg.kind !== e.kind || e.t - lastMsg.t > 4) {
+      const el = document.createElement('div');
+      el.className = 'msg ' + e.kind;
+      const head = document.createElement('div');
+      head.className = 'who';
+      const dot = document.createElement('i'); dot.style.background = j.figures[e.who].userData.top;
+      const nm = document.createElement('b'); nm.textContent = e.name;
+      const kind = document.createElement('span'); kind.textContent = e.kind === 'say' ? '' : KIND[e.kind];
+      const tm = document.createElement('time'); tm.textContent = e.t.toFixed(1);
+      head.append(dot, nm, kind, tm);
+      el.appendChild(head);
+      logEl.appendChild(el);
+      lastMsg = { el, who: e.who, kind: e.kind, t: e.t };
+    }
+    const text = document.createElement('div'); text.className = 'text'; text.textContent = e.text;
+    lastMsg.el.appendChild(text);
+    lastMsg.t = e.t;
+  }
+  if (stick) logEl.scrollTop = logEl.scrollHeight;
 }
+// 台本の出来事も履歴に流す
+const note = (text) => addLog({ t: j.state.t, kind: 'event', text });
+document.querySelectorAll('#filters button').forEach((b) => b.addEventListener('click', () => {
+  const on = b.getAttribute('aria-pressed') !== 'true';
+  b.setAttribute('aria-pressed', String(on));
+  logEl.classList.toggle('no-' + b.dataset.f, !on);
+}));
+// 右側の列は帯の下から始める（帯の高さは画面幅で変わる）
+const fitBar = () => document.documentElement.style.setProperty('--bar-h', document.querySelector('.bar').getBoundingClientRect().bottom + 8 + 'px');
+addEventListener('resize', fitBar);
+fitBar();
 j.minds.onLog((e) => { float(e); addLog(e); });
 
 // 方針のパネル：見積もり（墨）、一般常識（朱）、実際（緑）を一本の目盛りに並べる
