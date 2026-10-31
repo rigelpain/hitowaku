@@ -243,7 +243,8 @@ function say(line) {
   u.shake = line.shake || 0;
   if (line.sorrow) u.sorrow = line.sorrow;
   j.state.speaker = line.who;
-  // 感情は吹き出しの字と本人の姿勢だけで表す。天気や画面全体の色には出さない（本当に天気が変わったように見えるため）
+  // 感情は吹き出しの字、本人の姿勢、画面全体の色で表す。天気には出さない（心境なのか本当の天気なのか分からなくなるため）
+  Object.assign(j.state.moodTarget, line.mood);
   setTimeout(() => { b.shake = 0; }, 99999);
 }
 
@@ -253,7 +254,7 @@ const events = [
   [7.0, () => $('card').classList.add('show')],
   [9.0, () => $('card').classList.add('docked')],
   ...LINES.map((l) => [l.at, () => say(l)]),
-  [36.5, () => { bubbles.forEach((b) => b.el.classList.remove('show')); j.state.speaker = null; j.figures.forEach((f) => { f.userData.shake = 0; }); $('card').classList.remove('show'); $('rule').classList.add('show'); }],
+  [36.5, () => { bubbles.forEach((b) => b.el.classList.remove('show')); j.state.speaker = null; Object.assign(j.state.moodTarget, { tension: 0.3, sorrow: 0.2, warmth: 0, hope: 0 }); j.figures.forEach((f) => { f.userData.shake = 0; }); $('card').classList.remove('show'); $('rule').classList.add('show'); }],
   ...VOTES.map(([, to], k) => [37.2 + k * 0.7, () => {
     const el = document.createElement('div'); el.className = 'vote'; el.textContent = to; document.body.appendChild(el);
     votes.push({ el, i: [0, 1, 2, 3, 4][k] });
@@ -273,6 +274,7 @@ const events = [
     j.setCamX(j.RIVER[0] + 0.5); j.state.boatMode = true;
     j.state.speaker = 2;
     $('party').textContent = '4';
+    Object.assign(j.state.moodTarget, { tension: 0, sorrow: 0.8, warmth: 0, hope: 0 });
   }],
   [45.5, () => { j.state.boatTarget = j.RIVER[1] - 0.2; $('rule').classList.remove('show'); }],
   [50, () => $('caption').classList.add('show')],
