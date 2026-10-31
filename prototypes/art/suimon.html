@@ -49,7 +49,9 @@
   #gates { left: 12px; top: calc(var(--bar-h, 50px) + 10px); bottom: 12px; width: 260px; display: flex; flex-direction: column; overflow-y: auto; }
   #gates > div { padding: 10px 12px; }
   #gates > div + div { border-top: 1px solid var(--line); }
-  .dial { display: flex; justify-content: center; }
+  .dial { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .lens button { padding: 3px 7px; }
+  .lenshint { font-size: 11px; color: var(--soft); text-align: center; }
   .dial svg { width: 232px; height: 232px; display: block; touch-action: none; }
   .dial .w { cursor: pointer; stroke: var(--paper); stroke-width: 1.5; }
   .dial .w.sel { stroke: var(--ink); stroke-width: 2; }
@@ -241,7 +243,8 @@
 
 
 <section class="panel" id="gates">
-  <div class="dial"><svg id="dial" viewBox="-120 -120 240 240" aria-label="水門の円盤。山を上から見た形で、12 の池が並ぶ"></svg></div>
+  <div class="dial"><svg id="dial" viewBox="-120 -120 240 240" aria-label="水門の円盤。山を上から見た形で、12 の池が並ぶ"></svg>
+    <div class="mode lens" id="lens"></div><div class="lenshint" id="lensHint"></div></div>
   <div class="sel-detail" id="selDetail"></div>
   <div class="gofoot" id="flowNote"></div>
 </section>
@@ -353,12 +356,35 @@ function groupName(kind, key) {
   if (kind === 'ring') return `${RINGS[key].name}（4 つの池）`;
   return '山全体（12 の池）';
 }
-function drawDial(svg, { values, labels = [], sel = [], danger = [], interactive = false }) {
+// 円盤に出す値（レンズ）。数字と色の濃さを切り替える
+const LENSES = {
+  share: { label: '配分', hint: '数字：流している割合（%）。濃さ：水かさ' },
+  water: { label: '水', hint: '数字：水かさがダムの高さの何 % か' },
+  dam: { label: 'ダム', hint: '数字：ダムの高さ。濃いほど高い' },
+  health: { label: '傷み', hint: '数字：ダムの丈夫さ（%）。赤いほど傷んでいる' },
+  homes: { label: '世帯', hint: '数字：暮らしている世帯の数。濃いほど人が多い' },
+  house: { label: '家', hint: '数字：水の上に出ている家の段数（平均）。濃いほど高い' },
+};
+let lens = 'share';
+function lensValues() {
+  const sh = shares();
+  const dry = (i) => { const hs = homesIn(i); return hs.length ? hs.reduce((s, h) => s + h.blocks.filter((b) => !b.sunk).length, 0) / hs.length : 0; };
+  const maxPpl = Math.max(1, ...L.map((l) => sim.people(l.i)));
+  switch (lens) {
+    case 'water': return { values: L.map((l) => l.level / l.cap), labels: L.map((l) => Math.round(l.level / l.cap * 100)) };
+    case 'dam': return { values: L.map((l) => l.cap / 14), labels: L.map((l) => l.cap.toFixed(1)) };
+    case 'health': return { values: L.map((l) => 1 - l.health), labels: L.map((l) => Math.round(l.health * 100)), colors: L.map((l) => `rgba(200,69,45,${0.08 + 0.85 * (1 - l.health)})`) };
+    case 'homes': return { values: L.map((l) => sim.people(l.i) / maxPpl), labels: L.map((l) => homesIn(l.i).length) };
+    case 'house': return { values: L.map((l) => dry(l.i) / 8), labels: L.map((l) => dry(l.i).toFixed(1)), colors: L.map((l) => `rgba(185,132,90,${0.12 + 0.8 * Math.min(1, dry(l.i) / 8)})`) };
+    default: return { values: L.map((l) => l.level / l.cap), labels: sh.map((s) => Math.round(s * 100)) };
+  }
+}
+function drawDial(svg, { values, labels = [], sel = [], danger = [], interactive = false, colors = null }) {
   let html = `<g class="hub" data-hub="1"><circle r="21" fill="#3F86B0"/><text y="1" class="light" style="font-size:9px">${interactive ? '全体' : '滝'}</text></g>`;
   L.forEach((l, i) => {
     const [r0, r1] = RADII[l.ring], a = angleOf(l.sector);
     const val = values[i];
-    const col = val > 1 ? 'rgba(200,69,45,.85)' : `rgba(47,110,140,${0.12 + 0.8 * Math.min(1, val)})`;
+    const col = colors?.[i] ?? (val > 1 ? 'rgba(200,69,45,.85)' : `rgba(47,110,140,${0.12 + 0.8 * Math.min(1, val)})`);
     html += `<path class="w${sel.includes(i) ? ' sel' : ''}${danger[i] ? ' danger' : ''}" data-i="${i}" d="${wedge(r0, r1, a - Math.PI / 4, a + Math.PI / 4, 2.2)}" fill="${col}"/>`;
     const rm = (r0 + r1) / 2;
     if (labels[i] !== undefined) html += `<text x="${(rm * Math.cos(a)).toFixed(1)}" y="${(rm * Math.sin(a)).toFixed(1)}" class="${val > 0.55 ? 'light' : ''}">${labels[i]}</text>`;
@@ -384,7 +410,10 @@ function select(kind, key, inspect = true) {
 }
 function drawGates() {
   const sh = shares(), grp = selected();
-  drawDial($('dial'), { values: L.map((l) => l.level / l.cap), labels: sh.map((s) => Math.round(s * 100)), sel: grp, danger: L.map((l) => l.level / l.cap > 0.9 || l.health < 0.35), interactive: true });
+  drawDial($('dial'), { ...lensValues(), sel: grp, danger: L.map((l) => l.level / l.cap > 0.9 || l.health < 0.35), interactive: true });
+  $('lens').innerHTML = Object.entries(LENSES).map(([k, x]) => `<button data-l="${k}" aria-pressed="${lens === k}">${x.label}</button>`).join('');
+  $('lens').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { lens = b.dataset.l; drawGates(); }));
+  $('lensHint').textContent = LENSES[lens].hint;
   const share = grp.reduce((s, i) => s + sh[i], 0);
   const avgW = Math.round(grp.reduce((s, i) => s + weights[i], 0) / grp.length);
   const lvl = grp.reduce((s, i) => s + L[i].level, 0), cap = grp.reduce((s, i) => s + L[i].cap, 0);
