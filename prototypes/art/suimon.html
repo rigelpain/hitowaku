@@ -254,7 +254,8 @@
   <h3>池ごとの沈んだ章</h3>
   <div class="rres"><svg id="resDial" viewBox="-110 -110 220 220"></svg><p class="note" id="resNote"></p></div>
   <h3>聞こえた非難は当たっていたか</h3>
-  <p class="note" id="accuse"></p>
+  <table class="cmp"><thead><tr><th>見る向き</th><th>見え方</th><th>非難</th><th>当たり</th><th>外れ</th></tr></thead><tbody id="accRows"></tbody></table>
+  <p class="note" id="accuse" style="margin-top:8px"></p>
   <div class="foot" style="margin-top:18px"><button class="ghost" id="rSame">同じ山でやり直す</button><button class="primary" id="rNew">別の山へ</button></div>
 </div></section>
 
@@ -444,16 +445,18 @@ function showHome(id) {
   const h = homeById(id);
   $('iTitle').innerHTML = `${L[h.layer].name}${h.layer !== h.home ? `（もとは${L[h.home].name}）` : ''}`;
   const chapters = h.blocks.filter((b) => !b.foundation);
-  const known = L.filter((o) => o.i !== h.layer && (o.sector === L[h.layer].sector || o.ring === L[h.layer].ring));
+  const SIGHT = { clear: 'よく見える', hazy: 'ダムの高さで推し量る', faint: 'ほとんど見えない' };
+  const known = L.filter((o) => sim.sight(h.layer, o.i));
   $('iBody').innerHTML = `<div class="name"><b>${h.name}</b><span>${h.age}歳・${h.members}人家族</span></div>
     <div class="chips">${h.facts.map((f) => `<i>${f}</i>`).join('')}</div>
     <dl class="kv"><dt>水門番への信頼</dt><dd><div class="bar1"><i style="width:${h.trust * 100}%"></i></div></dd>
     <dt>見通し</dt><dd><div class="bar1"><i style="width:${h.foresight * 100}%"></i></div></dd>
     <dt></dt><dd style="color:var(--soft);font-size:11px;margin-top:-3px">${h.foresight > 0.65 ? '水はまだ増えると思っている' : h.foresight < 0.35 ? 'そのうち止むと思っている' : '半信半疑'}</dd>
     <dt>余力</dt><dd><div class="bar1"><i style="width:${Math.min(1, h.means / 2) * 100}%"></i></div></dd>
+    <dt>想像する力</dt><dd><div class="bar1"><i style="width:${h.imagination * 100}%"></i></div></dd>
     <dt>この季節</dt><dd>${h.action ? (h.action === 'stack' ? (h.why === 'late' ? '水が来て、慌てて家を足した' : '先回りして家を足した') : ACT[h.action]) + (h.target !== null && h.target !== undefined ? `（${L[h.target].name}）` : '') : '—'}</dd></dl>
-    <h5>顔の見える池の見立て（よく働いていると思っているか）</h5>
-    <div class="kv">${known.map((o) => `<dt>${o.name}</dt><dd><div class="bar1"><i style="width:${h.belief[o.i] * 100}%"></i></div></dd>`).join('')}</div>
+    <h5>よその池の見立て（よく働いていると思っているか）</h5>
+    <div class="kv">${known.map((o) => { const how = sim.sight(h.layer, o.i); return `<dt>${o.name}<br><span style="font-size:10px">${SIGHT[how]}</span></dt><dd><div class="bar1" style="opacity:${how === 'faint' ? 0.5 : 1}"><i style="width:${h.belief[o.i] * 100}%"></i></div></dd>`; }).join('')}</div>
     <h5>家の章（下から）</h5>
     <div class="stack" style="--c:${h.wall}">${chapters.map((b) => `<div class="${b.sunk ? 'sunk' : ''}">${b.n}</div>`).join('')}</div>`;
   $('inspect').classList.add('show');
@@ -595,8 +598,10 @@ function showResult() {
   const worst = [...L].sort((a, b) => b.sunk - a.sunk)[0];
   $('resNote').textContent = `いちばん多く沈んだのは ${worst.name}（${worst.sunk} 章）。赤い縁は、一度でも決壊した池。ふもとの町が浸かったのは ${sim.state.towns.map((n, s) => n ? `${SECTORS[s]} ${n} 回` : '').filter(Boolean).join('・') || 'なし'}。`;
   const acc = sim.state.history.flatMap((r) => r.voices.filter((x) => x.cat === 'accuse'));
-  const hit = acc.filter((x) => x.truth).length;
-  $('accuse').textContent = acc.length ? `よその池への非難が ${acc.length} 回聞こえた。そのうち、その季節に本当に手が少なかったのは ${hit} 回。残りの ${acc.length - hit} 回は、ダムの見え方から生まれた思い込みだった。` : 'よその池への非難は聞こえなかった。';
+  const DIRS = [['down', '上から下', '見下ろせば、手が動いているかがそのまま見える'], ['same', '同じ段', 'ダムの高さの変わり方から推し量る'], ['up', '下から上', 'ほとんど見えない。想像で補う']];
+  $('accRows').innerHTML = DIRS.map(([k, name, how]) => { const a = acc.filter((x) => x.dir === k), hit = a.filter((x) => x.truth).length; return `<tr><td>${name}</td><td style="text-align:left;color:var(--soft)">${how}</td><td class="num">${a.length}</td><td class="num">${hit}</td><td class="num">${a.length - hit}</td></tr>`; }).join('');
+  const up = acc.filter((x) => x.dir === 'up'), upMiss = up.filter((x) => !x.truth).length;
+  $('accuse').textContent = acc.length ? `上の段は下の段のことをよく知れるが、下の段から上の段はほとんど見えない。見上げての非難 ${up.length} 回のうち ${upMiss} 回は、見えないぶんを思い込みで補ったものだった。` : 'よその池への非難は聞こえなかった。';
   $('result').classList.add('show');
 }
 const go = (s) => { location.search = '?seed=' + (s ?? (1000 + Math.floor(Math.random() * 9000))); };

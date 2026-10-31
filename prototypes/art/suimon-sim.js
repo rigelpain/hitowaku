@@ -50,6 +50,8 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
     selfish: 0.15 + R() * 0.55, diligence: 0.35 + R() * 0.55,
     // 見通し：水は増え続けると思っているか（低いと、水が来てから慌てる）。余力：資材や蓄え
     foresight: 0.1 + R() * 0.85, means: RINGS[h.ring].res * (0.7 + R() * 0.6),
+    // 想像する力：見えない池の暮らしを思い描けるか。上の段ほど強く、下の段ほど弱い
+    imagination: clamp([0.7, 0.5, 0.32][h.ring] + (R() - 0.5) * 0.4, 0.05, 0.95),
     trust: 0.6, fatigue: 0, displaced: 0,
     // よその池がどれだけ働いているかの見立て（本当とは限らない）
     belief: Array(N).fill(0.6),
@@ -68,7 +70,19 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
 
   const sunkCount = (h) => h.blocks.filter((b) => b.sunk).length;
   const people = (i) => homes.filter((h) => h.layer === i).reduce((s, h) => s + h.members, 0);
-  const near = (a, b) => layers[a].sector === layers[b].sector || layers[a].ring === layers[b].ring; // 顔の見える池
+  const near = (a, b) => layers[a].sector === layers[b].sector || layers[a].ring === layers[b].ring; // 手伝いに行ける池
+  // 見え方。上からは同じ方角の下の池がよく見え（clear）、同じ段どうしはダムの高さから推し量り（hazy）、
+  // 下からは真上の池がかすかに見えるだけ（faint）。それ以外は見えない（null）
+  const sight = (a, b) => {
+    if (a === b) return null;
+    const A = layers[a], B = layers[b], dr = B.ring - A.ring;
+    if (dr > 0) return A.sector === B.sector ? 'clear' : null;
+    if (dr === 0) return 'hazy';
+    return A.sector === B.sector && dr === -1 ? 'faint' : null;
+  };
+  const PRIOR_UP = 0.3; // 見えない上の段への思い込み（楽をしている）
+  // 見上げる池への見立ては、想像する力が弱いほど、はじめから思い込み寄り
+  homes.forEach((h) => layers.forEach((o) => { if (sight(h.layer, o.i) === 'faint') h.belief[o.i] = 0.6 * h.imagination + PRIOR_UP * (1 - h.imagination); }));
 
   function sink(i, level, ev) {
     for (const h of homes) {
@@ -168,6 +182,7 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
     // 6. 水門番への信頼と、よその池の見立て。rel は公平な取り分を 1 としたときの受けた水
     const tot = rec.inflow.reduce((a, b) => a + b, 0) || 1;
     rec.rel = rec.inflow.map((w) => w / tot * N);
+    const avgEffort = effort.reduce((a, b) => a + b, 0) / Math.max(1, homes.reduce((s2, x) => s2 + x.members, 0));
     for (const h of homes) {
       const rel = rec.rel[h.layer];
       h.trust += rel > 1.15 ? -(rel - 1) * 0.3 : (1 - rel) * 0.12;
@@ -175,12 +190,26 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
       h.trust -= h.sunkNow.length * 0.06;
       if (rel < 0.75 && !h.sunkNow.length) h.wasSpared = true;
       h.trust = clamp(h.trust, 0, 1);
-      // 見えるのは顔の見える池のダムの高さの変わり方だけ。そこから働きぶりを推し量るので、外れることもある
+      // よその池の働きぶりの見立て。見え方で確かさが変わる
       layers.forEach((o) => {
-        if (o.i === h.layer || !near(o.i, h.layer)) return;
+        const how = sight(h.layer, o.i);
+        if (!how) return;
         const grew = o.cap - capBefore[o.i];
-        const seen = clamp(0.5 + grew * 0.5 + (R() - 0.5) * 0.6, 0, 1);
-        h.belief[o.i] += (seen - h.belief[o.i]) * 0.4;
+        if (how === 'clear') {
+          // 見下ろせば、手が動いているかがそのまま見える
+          const ratio = (effort[o.i] / Math.max(1, people(o.i))) / Math.max(0.01, avgEffort);
+          const seen = clamp(0.5 + (ratio - 1) * 0.6 + (R() - 0.5) * 0.15, 0, 1);
+          h.belief[o.i] += (seen - h.belief[o.i]) * 0.6;
+        } else if (how === 'hazy') {
+          // 同じ段どうしは、ダムの高さの変わり方から推し量る。外れることもある
+          const seen = clamp(0.5 + grew * 0.5 + (R() - 0.5) * 0.6, 0, 1);
+          h.belief[o.i] += (seen - h.belief[o.i]) * 0.4;
+        } else {
+          // 見上げても、ほとんど見えない。想像する力が弱いと「上は楽をしている」に寄っていく
+          const seen = clamp(0.5 + grew * 0.5 + (R() - 0.5) * 1.0, 0, 1);
+          h.belief[o.i] += (seen - h.belief[o.i]) * 0.4 * h.imagination;
+          h.belief[o.i] += (PRIOR_UP - h.belief[o.i]) * (1 - h.imagination) * 0.35;
+        }
       });
     }
     rec.after = layers.map((l) => ({ level: l.level, cap: l.cap }));
@@ -202,13 +231,19 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
       if (h.cascadeFrom !== null) c.push({ w: 3.2, kind: 'say', cat: 'cascade', text: pick(r, VOICES.cascade[h.style]).replace('{L}', L(h.cascadeFrom)) });
       if (rec.rel[h.layer] > 1.2 || rec.surgeTo === h.layer) c.push({ w: (1 - h.trust) * 3 + 0.5, kind: 'say', cat: 'complain', text: pick(r, VOICES.complain[h.style]) });
       if (h.trust < 0.3 && state.voiceLevel >= 2) c.push({ w: 2.2, kind: 'say', cat: 'insult', text: pick(r, VOICES.insult[h.style].slice(0, state.voiceLevel >= 3 ? 2 : 1)) });
-      const known = layers.filter((o) => o.i !== h.layer && near(o.i, h.layer)).map((o) => o.i);
+      const known = layers.filter((o) => sight(h.layer, o.i)).map((o) => o.i);
       const low = known.sort((a, b) => h.belief[a] - h.belief[b])[0];
-      if (low !== undefined && h.belief[low] < 0.4 && state.voiceLevel >= 1) {
-        // 本当にさぼっていたか：その季節、その池の一人あたりの働きが、山全体の平均の 6 割に届かなかったか
+      // 見上げての思い込みは、確かめようがないぶん口に出やすい
+      const upLow = known.filter((o) => layers[o].ring < layers[h.layer].ring).sort((a, b) => h.belief[a] - h.belief[b])[0];
+      const target = upLow !== undefined && h.belief[upLow] < 0.45 && R() < 0.6 ? upLow : low;
+      if (target !== undefined && h.belief[target] < (target === upLow ? 0.45 : 0.4) && state.voiceLevel >= 1) {
+        const low2 = target;
+        // 本当に手が止まっていたか：その季節、その池の一人あたりの働きが、山全体の平均の 8 割に届かなかったか
         const avg = rec.effort.reduce((a, b) => a + b, 0) / Math.max(1, homes.reduce((s2, x) => s2 + x.members, 0));
-        const truth = rec.effort[low] / Math.max(1, people(low)) < avg * 0.6;
-        c.push({ w: 1.6, kind: 'say', cat: 'accuse', about: low, truth, text: pick(r, VOICES.accuse[h.style]).replace('{L}', L(low)) });
+        const truth = rec.effort[low2] / Math.max(1, people(low2)) < avg * 0.8;
+        const dir = layers[low2].ring > layers[h.layer].ring ? 'down' : layers[low2].ring < layers[h.layer].ring ? 'up' : 'same';
+        const bank = dir === 'up' ? VOICES.accuseUp : dir === 'down' ? VOICES.accuseDown : VOICES.accuse;
+        c.push({ w: dir === 'up' ? 1.7 : 1.6, kind: 'say', cat: 'accuse', about: low2, dir, truth, text: pick(r, bank[h.style]).replace('{L}', L(low2)) });
       }
       if (h.wasSpared && h.trust > 0.5) c.push({ w: 1, kind: 'say', cat: 'thanks', text: pick(r, VOICES.thanks[h.style]) });
       if (h.action === 'stack') c.push({ w: 1.1, kind: 'inner', text: pick(r, h.why === 'late' ? VOICES.stackLate : VOICES.stackEarly) });
@@ -222,7 +257,7 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
     }
     out.sort((a, b) => b.w - a.w);
     // 同じ種類の声ばかりにならないよう、種類ごとに数を絞る
-    const quota = { muse: 3, cascade: 2, complain: 3, accuse: 2, insult: 2, thanks: 1, help: 1, inner: 3 };
+    const quota = { muse: 3, cascade: 2, complain: 3, 'accuse-up': 2, 'accuse-down': 2, 'accuse-same': 1, insult: 2, thanks: 1, help: 1, inner: 3 };
     const used = {};
     const limit = state.voiceLevel === 0 ? 4 : 9;
     const said = new Set();
@@ -230,7 +265,7 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
       if (said.has(v.text)) return false;
       said.add(v.text);
       if (state.voiceLevel === 0 && v.kind === 'say' && v.cat !== 'thanks' && v.cat !== 'help') return false;
-      const k = v.cat || v.kind;
+      const k = v.cat === 'accuse' ? `accuse-${v.dir}` : (v.cat || v.kind);
       used[k] = (used[k] || 0) + 1;
       return used[k] <= (quota[k] ?? 1);
     }).slice(0, limit);
@@ -240,7 +275,7 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
     state, step, forecasts, surgeSeasons, N, S,
     hasSurge: () => surgeSeasons.has(state.season),
     forecast: () => forecasts[state.season],
-    people, sunkCount,
+    people, sunkCount, sight,
     ringPeople: (ring) => layers.filter((l) => l.ring === ring).reduce((s, l) => s + people(l.i), 0),
   };
 }
