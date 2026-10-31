@@ -172,7 +172,7 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
   const camFocus = new THREE.Vector3(4, 0, 5);
 
   // ---------- 状態 ----------
-  const minds = createMinds(PEOPLE, { policies });
+  const minds = createMinds(PEOPLE, { policies, seed });
   const state = { arriveX: 34.24, arrivedAt: null, t: 0, mood: { ...MOOD0 }, moodTarget: { ...MOOD0 }, speaker: null, rain: 0, rainTarget: 0, boatX: boat.position.x, boatTarget: boat.position.x, walking: true, caravanX: 3 };
   const seat = (i) => figures[i].userData;
   const slot = (i) => i * 0.9 + (i > 1 ? 0.6 : 0);
@@ -308,7 +308,7 @@ export function createJourney(canvas, ui, { seed = 7, policies = {} } = {}) {
     // カメラは一行を追う
     const target = new THREE.Vector3(state.caravanX - 1.5, 0, 5);
     if (state.camX !== undefined) target.x = state.camX;
-    camFocus.lerp(target, Math.min(1, dt * 2));
+    camFocus.lerp(target, state.t === 0 ? 1 : Math.min(1, dt * 2)); // 歩き出す前はすぐ一行に合わせる
     cam.position.set(camFocus.x + 12, 11, camFocus.z + 12);
     cam.lookAt(camFocus.x, 0.6, camFocus.z);
     sun.position.set(camFocus.x - 8, 12, camFocus.z + 6); sun.target.position.copy(camFocus);

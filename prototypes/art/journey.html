@@ -60,7 +60,34 @@
   }
 
   /* 頭の中の表示：内心・発話・ログ・方針。帯の右のボタンで出し入れする */
-  .toggles { display: flex; gap: 4px; }
+  .opts { position: relative; }
+  .opts > button, .menu button { font: inherit; font-size: 12px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; color: var(--ink); padding: 3px 10px; border-radius: 2px; cursor: pointer; }
+  .menu { position: absolute; right: 0; top: calc(100% + 8px); background: var(--panel); box-shadow: var(--lift); padding: 10px 12px; display: none; min-width: 210px; font-size: 12px; }
+  .opts.open .menu { display: block; }
+  .menu p { margin: 8px 0 4px; color: var(--soft); }
+  .menu .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .toggles { display: flex; gap: 4px; flex-wrap: wrap; }
+  /* 旅の前の説明 */
+  .intro { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(30, 27, 34, 0.35); font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; }
+  .intro.show { display: flex; }
+  .intro > div { background: var(--paper); box-shadow: var(--lift); width: min(620px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 26px 28px 22px; box-sizing: border-box; }
+  .intro h1 { margin: 0 0 8px; font-size: 30px; font-weight: 700; letter-spacing: 0.01em; }
+  .intro .world { margin: 0 0 18px; font-size: 15px; line-height: 1.8; color: #3B3833; }
+  .intro .facts { flex-wrap: wrap; gap: 6px 22px; margin-bottom: 18px; }
+  .intro .facts dd { font-size: 15px; }
+  .intro .goal { flex-basis: 100%; }
+  .members { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+  .members th { text-align: left; font-weight: 500; color: var(--soft); font-size: 11px; padding: 0 8px 4px 0; }
+  .members td { padding: 6px 8px 6px 0; border-top: 1px solid rgba(30, 27, 34, 0.1); vertical-align: top; }
+  .members td:first-child { white-space: nowrap; font-weight: 600; }
+  .commit { display: inline-block; width: 64px; height: 6px; background: rgba(30, 27, 34, 0.1); vertical-align: middle; }
+  .commit i { display: block; height: 100%; background: var(--ink); }
+  .intro .how { margin: 0 0 16px; font-size: 13px; color: var(--soft); line-height: 1.7; }
+  .intro .go { display: flex; align-items: center; justify-content: space-between; }
+  .intro .go span { color: var(--soft); font-size: 12px; }
+  .intro .go button { font: inherit; font-size: 15px; font-weight: 600; background: var(--ink); color: var(--paper); border: 0; padding: 10px 22px; cursor: pointer; }
+  .mind .goal { color: var(--soft); margin-bottom: 4px; }
+  .side .note { color: var(--soft); padding: 0 12px 8px; }
   .toggles button { font: inherit; font-size: 12px; border: 1px solid rgba(30, 27, 34, 0.25); background: transparent; color: var(--soft); padding: 3px 8px; border-radius: 2px; cursor: pointer; }
   .toggles button[aria-pressed="true"] { background: rgba(30, 27, 34, 0.1); color: var(--ink); border-color: rgba(30, 27, 34, 0.5); }
   .float { position: fixed; transform: translate(-50%, -100%); max-width: 11em; white-space: nowrap; font-size: 13px; line-height: 1.5; padding: 3px 8px; pointer-events: none; white-space: normal; }
@@ -105,14 +132,22 @@
 <body>
 <canvas id="c"></canvas>
 <div class="card" id="card"><h2>The bridge is out</h2><dl class="facts"><div><dt>Boat</dt><dd>1</dd></div><div><dt>Seats</dt><dd>4 + cart</dd></div><div><dt>Trips</dt><dd>1</dd></div></dl><p class="outcome">One person stays behind</p></div>
-<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Food</dt><dd>9 days</dd></div><div><dt>To the sea</dt><dd>160 km</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>Majority vote</b><div class="tally" id="tally"></div></div><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div></div>
-<section class="side" id="mindPanel"><h4>Minds<button id="restart" class="sub">Restart</button></h4><div class="legend"><span><i style="background:var(--ink)"></i>見積もり</span><span><i style="background:var(--shu)"></i>一般常識</span><span><i style="background:#7FA05E"></i>実際</span></div><div id="minds"></div></section>
+<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Ship in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>Majority vote</b><div class="tally" id="tally"></div></div><div class="opts" id="opts"><button id="optBtn" aria-expanded="false">Options</button><div class="menu"><p>Show</p><div class="toggles" id="toggles"><button data-k="inner" title="T">Thoughts</button><button data-k="talk" title="K">Talk</button><button data-k="log" title="L">Log</button><button data-k="minds" title="M">Minds</button></div><p>Journey <span id="seedLabel"></span></p><div class="row"><button id="about">About</button><button id="newJourney">New journey</button></div></div></div></div>
+<section class="side" id="mindPanel"><h4>Minds<span><button id="toAuto">Back to AI</button> <button id="restart">Restart</button></span></h4><p class="note">ふだんは AI が旅ごとに決めます。動かした値は、あなたの決めた値として次のやり直しにも残ります。</p><div class="legend"><span><i style="background:var(--ink)"></i>見積もり</span><span><i style="background:var(--shu)"></i>一般常識</span><span><i style="background:#7FA05E"></i>実際</span></div><div id="minds"></div></section>
 <section class="side" id="logPanel"><h4>Log</h4><div id="log"></div></section>
+<section class="intro" id="intro"><div>
+  <h1>Last Ship</h1>
+  <p class="world">川上の町は、来月ダムの底に沈みます。住んでいた人たちは、それぞれの行き先へ散っていきました。この一行は、海辺の港から出る最後の船を目指して歩いています。</p>
+  <dl class="facts"><div class="goal"><dt>Party goal</dt><dd id="partyGoal"></dd></div><div><dt>Ship leaves in</dt><dd>7 days</dd></div><div><dt>Port</dt><dd>160 km</dd></div><div><dt>Food</dt><dd>9 days</dd></div></dl>
+  <table class="members"><thead><tr><th>Member</th><th>Own goal</th><th>With the party</th></tr></thead><tbody id="members"></tbody></table>
+  <p class="how">一人ひとりは AI が動かします。誰が何を考え、どう決めるかを見てください。頭の中は Options から見られます。</p>
+  <div class="go"><span id="introSeed"></span><button id="start">Start</button></div>
+</div></section>
 <div class="caption" id="caption">大槻 文雄 stayed behind</div>
 <div class="ask" id="ask"><h3>Was this the right way to decide?</h3><button>Choose the rule next time</button><button class="sub">Journey log</button></div>
 <script type="module">
 import { createJourney } from './journey.js';
-import { COMMON } from './mind.js';
+import { COMMON, PARTY_GOAL } from './mind.js';
 
 const LINES = [
   { at: 9.5, who: 0, mood: { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 }, text: '荷車は置いていけない。食料がないと向こうで全員もたない。' },
@@ -164,7 +199,11 @@ const ui = {
 // 方針は Minds パネルで変えられる。変えた値はこの画面を開いている間だけ残す
 let saved = {};
 try { saved = JSON.parse(sessionStorage.getItem('hitowaku-policies') || '{}'); } catch {}
-const j = createJourney(document.getElementById('c'), ui, { seed: 7, policies: saved });
+// 旅の seed：URL の ?seed= で決まる。なければ旅ごとに変わる（録画のときは 7）
+const params = new URLSearchParams(location.search);
+const capture = params.has('capture');
+const seed = Number(params.get('seed')) || (capture ? 7 : 1000 + Math.floor(Math.random() * 9000));
+const j = createJourney(document.getElementById('c'), ui, { seed, policies: saved });
 // 橋の手前まで歩く。着くまでの時間は、一行がどう歩みを合わせるかで変わる
 j.state.caravanX = j.state.arriveX - 16;
 // 出来事の時刻は、橋に着いた時刻から数える（台本の 6.6 秒が着いた瞬間）
@@ -242,8 +281,10 @@ const events = [
   [54, () => { $('caption').classList.remove('show'); $('ask').classList.add('show'); }],
 ];
 let ei = 0;
+// 説明を読んでいる間は、時間を止めて絵だけ描く
+let paused = !capture;
 function step(dt) {
-  j.update(dt);
+  j.update(paused ? 0 : dt);
   if (show.minds) drawMinds();
   const at = j.state.arrivedAt;
   while (at !== null && ei < events.length && events[ei][0] - ARRIVE + at <= j.state.t) { events[ei][1](); ei++; }
@@ -299,6 +340,7 @@ j.minds.minds.forEach((m) => {
   const box = document.createElement('div');
   box.className = 'mind';
   box.innerHTML = `<div class="head"><b>${m.name}</b><span class="watch"></span></div>
+    <div class="goal">${m.goal}　一行の目的に乗る度合い ${m.commit}</div>
     <div class="gauge other"><i></i><s></s><u></u></div>
     <div class="head"><span>自分の速さ</span></div>
     <div class="gauge self"><i></i><s></s><u></u></div>
@@ -325,7 +367,33 @@ j.minds.minds.forEach((m) => {
   m.el = box;
   mindsEl.appendChild(box);
 });
-$('restart').addEventListener('click', () => location.reload());
+const goSeed = (n) => { const q = new URLSearchParams(location.search); q.set('seed', n); location.search = q.toString(); };
+$('restart').addEventListener('click', () => goSeed(seed));
+$('toAuto').addEventListener('click', () => { try { sessionStorage.removeItem('hitowaku-policies'); } catch {} goSeed(seed); });
+$('newJourney').addEventListener('click', () => goSeed(1000 + Math.floor(Math.random() * 9000)));
+
+// Options のメニュー
+const opts = $('opts');
+$('optBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const open = opts.classList.toggle('open');
+  $('optBtn').setAttribute('aria-expanded', String(open));
+  // ボタンが左寄りなら左端に、右寄りなら右端にそろえて、画面からはみ出さないようにする
+  const menu = opts.querySelector('.menu'), r = $('optBtn').getBoundingClientRect();
+  const leftSide = r.left < innerWidth / 2;
+  menu.style.left = leftSide ? '0' : 'auto'; menu.style.right = leftSide ? 'auto' : '0';
+});
+addEventListener('click', (e) => { if (!opts.contains(e.target)) { opts.classList.remove('open'); $('optBtn').setAttribute('aria-expanded', 'false'); } });
+$('seedLabel').textContent = '#' + seed;
+
+// 旅の前の説明：世界、一行の目的、一人ひとりの目的と、一行の目的に乗る度合い
+$('partyGoal').textContent = PARTY_GOAL;
+$('introSeed').textContent = 'Journey #' + seed + (Object.keys(saved).length ? '　あなたの決めた方針あり' : '');
+$('members').innerHTML = j.minds.minds.map((m) => `<tr><td>${m.name}</td><td>${m.goal}</td><td><span class="commit"><i style="width:${m.commit * 100}%"></i></span></td></tr>`).join('');
+const openIntro = () => { paused = true; $('intro').classList.add('show'); };
+$('start').addEventListener('click', () => { paused = false; $('intro').classList.remove('show'); });
+$('about').addEventListener('click', () => { opts.classList.remove('open'); openIntro(); });
+if (!capture) openIntro();
 function drawMinds() {
   j.minds.minds.forEach((m) => {
     const o = j.minds.watching(m);

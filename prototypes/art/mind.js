@@ -15,29 +15,61 @@
 //     selfLearn   自分を知る。歩いている体の手応えから、自分の見積もりをどれだけ直すか（0〜1）
 //     depend      人の見方に左右される。人が自分をどう見ているかを、自分の見積もりにどれだけ取り込むか（0〜1）
 //
+// 一行の目的と、一人ひとりの目的
+//   PARTY_GOAL    一行が目指すこと
+//   goal          その人自身の目的
+//   commit        一行の目的にどれだけ乗っているか（0〜1）。低い人は、人に合わせて歩みを落としにくい
+//
+// ふだんは AI が旅ごと（seed ごと）に、性格の芯は保ったまま方針と力を少しずつ変えて決める。
+// Minds パネルで人が決めた値は、その上に重ねる。
+//
 // 速さはすべて、一行の標準の速さ PACE に対する比で表す。
 
 export const COMMON = { elder: 0.6, adult: 1.0 };
+export const PARTY_GOAL = '港を出る最後の船に全員で乗る';
 
 export const MINDS = {
-  toru:  { kind: 'adult', ability: 1.0,  policy: { adapt: 0.9, observe: true,  learn: 0.4, metacog: true,  voice: 'declare', trust: 0.5, stereo: 0.5, selfLearn: 0.3,  depend: 0.2 } },
-  akari: { kind: 'adult', ability: 1.05, policy: { adapt: 0,   observe: true,  learn: 0.6, metacog: true,  voice: 'hide',    trust: 0.3, stereo: 0.5, selfLearn: 0.3,  depend: 0.5 } },
-  fumio: { kind: 'elder', ability: 0.92, policy: { adapt: 0.2, observe: true,  learn: 0,   metacog: true,  voice: 'share',   trust: 0.5, stereo: 0.8, selfLearn: 0.25, depend: 0.7 } },
-  yuma:  { kind: 'adult', ability: 1.1,  policy: { adapt: 0.3, observe: false, learn: 0,   metacog: false, voice: 'share',   trust: 0.8, stereo: 0.3, selfLearn: 0.5,  depend: 0.1 } },
-  nagi:  { kind: 'adult', ability: 0.95, policy: { adapt: 0.7, observe: true,  learn: 0.3, metacog: false, voice: 'hide',    trust: 0.2, stereo: 0.6, selfLearn: 0.1,  depend: 0.8 } },
+  toru:  { kind: 'adult', goal: '全員を船に乗せる', commit: 0.95, policy: { adapt: 0.9, observe: true,  learn: 0.4, metacog: true,  voice: 'declare', trust: 0.5, stereo: 0.5, selfLearn: 0.3,  depend: 0.2 } },
+  akari: { kind: 'adult', goal: '港町で待つ子どもたちに会う', commit: 0.6, policy: { adapt: 0,   observe: true,  learn: 0.6, metacog: true,  voice: 'hide',    trust: 0.3, stereo: 0.5, selfLearn: 0.3,  depend: 0.5 } },
+  fumio: { kind: 'elder', goal: '港町に住む孫に会う。沈む町を離れたくない気持ちもある', commit: 0.4, policy: { adapt: 0.2, observe: true,  learn: 0,   metacog: true,  voice: 'share',   trust: 0.5, stereo: 0.8, selfLearn: 0.25, depend: 0.7 } },
+  yuma:  { kind: 'adult', goal: '沈む町と旅の記録を残す', commit: 0.5, policy: { adapt: 0.3, observe: false, learn: 0,   metacog: false, voice: 'share',   trust: 0.8, stereo: 0.3, selfLearn: 0.5,  depend: 0.1 } },
+  nagi:  { kind: 'adult', goal: '途中で拾われた。行き先はまだない', commit: 0.3, policy: { adapt: 0.7, observe: true,  learn: 0.3, metacog: false, voice: 'hide',    trust: 0.2, stereo: 0.6, selfLearn: 0.1,  depend: 0.8 } },
 };
 
 const KIND_JA = { elder: 'お年寄り', adult: '大人' };
+// 実際の力の幅：一般常識が当たる旅も、外れる旅もある
+const ABILITY_RANGE = { elder: [0.5, 1.0], adult: [0.88, 1.15] };
+const VOICES = ['share', 'declare', 'hide'];
+
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const round1 = (v) => Math.round(v * 10) / 10;
+
+// AI が決める方針：性格の芯（MINDS）から、旅ごとに少しずらす
+function autoPolicy(base, r) {
+  const p = {};
+  for (const [k, v] of Object.entries(base)) {
+    if (typeof v === 'number') p[k] = round1(clamp01(v + (r() - 0.5) * 0.5));
+    else if (typeof v === 'boolean') p[k] = r() < 0.2 ? !v : v;
+    else p[k] = r() < 0.25 ? VOICES[Math.floor(r() * VOICES.length)] : v;
+  }
+  return p;
+}
 const fmt = (v) => v.toFixed(2);
 
-export function createMinds(people, { leader = 0, policies = {} } = {}) {
+export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}) {
+  const r = rng(seed * 97 + 13);
   const log = [];
   const listeners = [];
   const minds = people.map((p, i) => {
     const m = MINDS[p.id];
+    const [lo, hi] = ABILITY_RANGE[m.kind];
+    const ability = Math.round((lo + r() * (hi - lo)) * 100) / 100;
+    const commit = round1(clamp01(m.commit + (r() - 0.5) * 0.3));
+    const auto = autoPolicy(m.policy, r);
     return {
-      i, id: p.id, name: p.name, first: p.name.split(' ').pop(), kind: m.kind, ability: m.ability,
-      policy: { ...m.policy, ...(policies[p.id] || {}) },
+      i, id: p.id, name: p.name, first: p.name.split(' ').pop(), kind: m.kind, ability, goal: m.goal, commit,
+      auto, policy: { ...auto, ...(policies[p.id] || {}) },
       belief: people.map((q) => COMMON[MINDS[q.id].kind]),
       seen: people.map(() => ({ sum: 0, n: 0, avg: null })),
       noticed: new Set(),
@@ -84,7 +116,8 @@ export function createMinds(people, { leader = 0, policies = {} } = {}) {
     const m = minds[i], own = ownPace(m);
     let slow = Infinity;
     minds.forEach((o) => { if (o !== m) slow = Math.min(slow, m.belief[o.i]); });
-    const a = m.policy.adapt;
+    // 一行の目的に乗っていない人ほど、人に合わせて歩みを落としにくい
+    const a = m.policy.adapt * (0.4 + 0.6 * m.commit);
     return Math.min(own, (1 - a) * own + a * slow);
   }
 
@@ -149,6 +182,12 @@ export function createMinds(people, { leader = 0, policies = {} } = {}) {
     else emit(t, m, 'act', `${o.first}さんの見積もりが変わり始めた`, { aware: false, short: '見積もりが動いた' });
     if (!meta) return;
     if (m.policy.voice === 'share') say(t, m, `${o.first}さん、けっこう${faster ? '速い' : 'ゆっくり'}ですね`, { about: o.i, value: m.seen[o.i].avg });
+    else if (m.policy.voice === 'declare' && o.i === leader) {
+      // 先頭の歩みについては、自分の出せる速さと比べて言う
+      const own = ownPace(m), seen = m.seen[o.i].avg;
+      if (seen > own + 0.05) say(t, m, '少し待ってほしい');
+      else if (seen < own - 0.1) say(t, m, 'もう少し速くても大丈夫');
+    }
     else if (m.policy.voice === 'declare') say(t, m, faster ? '少しペースを上げよう' : 'もう少しゆっくり行こう');
     else emit(t, m, 'inner', '（言わないでおこう）');
   }
