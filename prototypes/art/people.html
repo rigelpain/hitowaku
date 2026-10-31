@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>人の見本</title>
+<style>html, body { margin: 0; height: 100%; background: #EDE6D3; } canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+// 人の形・眼・感情の出方を、近くで確かめるための見本。?raw で点描を外す。
+import * as THREE from 'three';
+import { makePerson } from './person.js';
+import { colorDither } from './post.js';
+import { ground } from './materials.js';
+
+const PALETTE = ['#EDE6D3', '#1E1B22', '#2C3E66', '#3F7A78', '#9DB08A', '#7FA05E', '#4F7A44', '#2F4A2C', '#D9A441', '#D6C094', '#9EC1CF', '#7A5236', '#4A3426', '#8C8A86', '#B9845A', '#E8CDB0', '#C2503A', '#7A5A98', '#4C7FB8', '#E0B13E', '#D4AE90'];
+const PEOPLE = [
+  { top: '#7A5A98', bottom: '#4A4A52', hair: '#3A2E25', prop: 'pack', build: 1.15, height: 1.14 },
+  { top: '#C2503A', bottom: '#2C3E66', hair: '#2E2620', prop: 'bucket', build: 0.9, height: 1.06, hairStyle: 'tied', mood: { tension: 1 } },
+  { top: '#4C7FB8', bottom: '#6E6A62', hair: '#C8C8C0', prop: 'cane', build: 1.0, height: 1.08, stoop: 1, hairStyle: 'bald', mood: { sorrow: 1 } },
+  { top: '#E0B13E', bottom: '#3F4A3C', hair: '#3A2E25', prop: 'camera', build: 0.95, height: 1.1, hairStyle: 'long' },
+  { top: '#3F7A78', bottom: '#5E4630', hair: '#1E1B22', prop: 'none', build: 0.85, height: 0.98 },
+];
+const raw = new URLSearchParams(location.search).has('raw');
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: raw, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.shadowMap.enabled = true;
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#EDE6D3');
+const floor = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, 3), ground('#7FA05E', '#7A5A3C', 'grass'));
+floor.position.y = -0.2; floor.receiveShadow = true; scene.add(floor);
+const outline = new THREE.MeshBasicMaterial({ color: '#1E1B22', side: THREE.BackSide });
+const rigs = PEOPLE.map((p, i) => { const r = makePerson(p, outline); r.root.position.set(-2 + i, 0, 0); r.root.rotation.y = 0.5; scene.add(r.root); return { r, p }; });
+scene.add(new THREE.HemisphereLight('#FFF4E0', '#7A8A6A', 1.6));
+const sun = new THREE.DirectionalLight('#FFE2B8', 1.9); sun.position.set(-3, 6, 4); sun.castShadow = true; scene.add(sun);
+let cam, fx;
+function size() {
+  const w = canvas.clientWidth, h = canvas.clientHeight; renderer.setSize(w, h, false);
+  const a = w / h, s = 1.0;
+  cam = new THREE.OrthographicCamera(-s * a * 1.4, s * a * 1.4, s * 1.4, -s * 1.4, 0.1, 100);
+  cam.position.set(6, 5, 8); cam.lookAt(0, 0.55, 0);
+  fx = colorDither(renderer, w, h, PALETTE);
+}
+size(); addEventListener('resize', size);
+const step = (t) => {
+  rigs.forEach(({ r, p }) => {
+    r.animate(t, { tension: p.mood?.tension || 0, sorrow: p.mood?.sorrow || 0 });
+    r.topMat.userData.sorrow.value = p.mood?.sorrow || 0;
+    r.bottomMat.userData.sorrow.value = p.mood?.sorrow || 0;
+  });
+  if (raw) renderer.render(scene, cam); else fx.render(scene, cam, 2);
+};
+window.step = step;
+(function loop(now) { step(now / 1000); requestAnimationFrame(loop); })(performance.now());
+</script>
+</body>
+</html>

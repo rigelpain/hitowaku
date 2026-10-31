@@ -5,7 +5,7 @@ import { RoundedBoxGeometry } from './vendor/addons/RoundedBoxGeometry.js';
 import { makePerson } from './person.js';
 import { ground, water as waterMat, wood, foliage, stone, cloth, shared } from './materials.js';
 
-const PALETTE = ['#EDE6D3', '#1E1B22', '#2C3E66', '#3F7A78', '#9DB08A', '#7FA05E', '#4F7A44', '#2F4A2C', '#D9A441', '#D6C094', '#9EC1CF', '#7A5236', '#4A3426', '#8C8A86', '#B9845A', '#E8CDB0', '#C2503A', '#7A5A98', '#4C7FB8', '#E0B13E'];
+const PALETTE = ['#EDE6D3', '#1E1B22', '#2C3E66', '#3F7A78', '#9DB08A', '#7FA05E', '#4F7A44', '#2F4A2C', '#D9A441', '#D6C094', '#9EC1CF', '#7A5236', '#4A3426', '#8C8A86', '#B9845A', '#E8CDB0', '#C2503A', '#7A5A98', '#4C7FB8', '#E0B13E', '#D4AE90'];
 const MOOD0 = { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 };
 
 // ---------- 世界 ----------

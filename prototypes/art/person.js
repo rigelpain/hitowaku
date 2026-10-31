@@ -75,9 +75,21 @@ export function makePerson(opts, outlineMat) {
     m.parent.add(h);
   });
 
+  // 眼。輪郭線はつけず、ときどきまばたきする。
+  // 小さく描くと点描に埋もれるので、黒目は頭の大きさに対してやや大きめ。
+  const eyeMat = new THREE.MeshBasicMaterial({ color: '#1E1B22' });
+  const eyes = [-1, 1].map((side) => {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.013 * k, 8, 6), eyeMat);
+    e.position.set(0.026 * k * side, 0.008 * k, 0.062 * k);
+    e.scale.set(1, 1.25, 0.6);
+    head.add(e);
+    return e;
+  });
+  const blinkSeed = Math.random() * 10;
+
   const stoop = opts.stoop ?? 0;
-  spine.rotation.x = stoop * 0.35;
-  neck.rotation.x = stoop * 0.25;
+  spine.rotation.x = stoop * 0.22;
+  neck.rotation.x = stoop * 0.15;
 
   // 歩き・立ち・身じろぎ
   function animate(t, { walking = false, speed = 1, sorrow = 0, tension = 0 } = {}) {
@@ -96,10 +108,18 @@ export function makePerson(opts, outlineMat) {
     });
     // 歩くときの上下動と、うつむき
     root.position.y = walking ? Math.abs(Math.cos(ph)) * 0.02 : 0;
-    spine.rotation.x = stoop * 0.35 + sorrow * 0.25;
-    neck.rotation.x = stoop * 0.25 + sorrow * 0.45;
+    spine.rotation.x = stoop * 0.22 + sorrow * 0.1;
+    neck.rotation.x = stoop * 0.15 + sorrow * 0.3;
     // 張りつめると肩が上がる
     chest.position.y = 0.07 * k + tension * 0.012;
+    // まばたき：ふだんは数秒に一度、張りつめると増え、悲しいと伏し目がちになる
+    const period = 3.2 - tension * 2.2;
+    const ph2 = (t + blinkSeed) % period;
+    const closed = ph2 < 0.12 ? 0.1 : 1;
+    eyes.forEach((e) => {
+      e.scale.y = 1.25 * closed * (1 - sorrow * 0.45);
+      e.position.y = (0.008 - sorrow * 0.006) * k;
+    });
   }
 
   return { root, animate, topMat, bottomMat };

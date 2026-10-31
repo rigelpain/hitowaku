@@ -90,7 +90,7 @@ export function colorDither(renderer, w, h, palette) {
   const targets = {};
   const target = (s) => targets[s] ||= new THREE.WebGLRenderTarget(Math.round(w / s), Math.round(h / s), { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
   const pal = palette.map((c) => new THREE.Color(c).convertLinearToSRGB());
-  while (pal.length < 20) pal.push(pal[pal.length - 1].clone());
+  while (pal.length < 24) pal.push(pal[pal.length - 1].clone());
   const mat = new THREE.ShaderMaterial({
     uniforms: {
       tex: { value: null }, res: { value: new THREE.Vector2(w, h) }, time: { value: 0 },
@@ -101,7 +101,7 @@ export function colorDither(renderer, w, h, palette) {
     vertexShader: quadVert,
     fragmentShader: `
       uniform sampler2D tex; uniform vec2 res; uniform float time;
-      uniform vec3 pal[20]; uniform int palN;
+      uniform vec3 pal[24]; uniform int palN;
       uniform float tension, sorrow, warmth, hope; uniform vec2 focus;
       varying vec2 vUv;
       float bayer(vec2 p){
@@ -135,7 +135,7 @@ export function colorDither(renderer, w, h, palette) {
         th = mix(th, hash(px + floor(time * 15.0)), tension * 0.5);
         // 近い2色を探して混ぜる
         float best = 1e9, second = 1e9; vec3 a = pal[0], b = pal[0];
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 24; i++) {
           if (i >= palN) break;
           float dd = distance(c, pal[i]);
           if (dd < best) { second = best; b = a; best = dd; a = pal[i]; }
