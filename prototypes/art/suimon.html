@@ -50,7 +50,8 @@
   #gates > div { padding: 10px 12px; }
   #gates > div + div { border-top: 1px solid var(--line); }
   .dial { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-  .lens button { padding: 3px 7px; }
+  .mode.lens { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; }
+  .lens button { padding: 3px 4px; white-space: nowrap; border-right: 1px solid var(--line) !important; }
   .lenshint { font-size: 11px; color: var(--soft); text-align: center; }
   .dial svg { width: 232px; height: 232px; display: block; touch-action: none; }
   .dial .w { cursor: pointer; stroke: var(--paper); stroke-width: 1.5; }
@@ -82,6 +83,14 @@
   .hp i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); }
   .hp.bad i { background: var(--shu); }
   .read { display: flex; justify-content: space-between; color: var(--soft); font-size: 11px; gap: 8px; }
+  .flow { display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; margin: 2px 0; font-size: 12px; align-items: baseline; }
+  .flow dt { color: var(--soft); font-size: 11px; }
+  .flow dd { margin: 0; font-weight: 600; }
+  .flow dd small { font-weight: 400; color: var(--soft); font-size: 10px; margin-left: 6px; }
+  .flow dd.up { color: var(--shu); }
+  .flow dd.down { color: var(--water); }
+  .flow dd b { color: var(--shu); }
+  .gauge .p { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(47, 110, 140, 0.55) 0 3px, rgba(47, 110, 140, 0.18) 3px 6px); }
   .read b { color: var(--shu); }
   .gofoot { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--soft); line-height: 1.6; }
   .gofoot .big { font-size: 22px; font-weight: 700; color: var(--ink); line-height: 1.1; }
@@ -358,7 +367,8 @@ function groupName(kind, key) {
 }
 // 円盤に出す値（レンズ）。数字と色の濃さを切り替える
 const LENSES = {
-  share: { label: '配分', hint: '数字：流している割合（%）。濃さ：水かさ' },
+  share: { label: '流す量', hint: '真ん中の滝から、各池へ一日に流し込む量。色は 5 日後の水かさ（赤は溢れる）' },
+  forecast: { label: '見込み', hint: 'いまの配分のままだと、何日で溢れるか。— は溢れない' },
   water: { label: '水', hint: '数字：水かさがダムの高さの何 % か' },
   dam: { label: 'ダム', hint: '数字：ダムの高さ。濃いほど高い' },
   health: { label: '傷み', hint: '数字：ダムの丈夫さ（%）。赤いほど傷んでいる' },
@@ -367,7 +377,7 @@ const LENSES = {
 };
 let lens = 'share';
 function lensValues() {
-  const sh = shares();
+  const fc = sim.forecast(shares());
   const dry = (i) => { const hs = homesIn(i); return hs.length ? hs.reduce((s, h) => s + h.blocks.filter((b) => !b.sunk).length, 0) / hs.length : 0; };
   const maxPpl = Math.max(1, ...L.map((l) => sim.people(l.i)));
   switch (lens) {
@@ -376,11 +386,12 @@ function lensValues() {
     case 'health': return { values: L.map((l) => 1 - l.health), labels: L.map((l) => Math.round(l.health * 100)), colors: L.map((l) => `rgba(200,69,45,${0.08 + 0.85 * (1 - l.health)})`) };
     case 'homes': return { values: L.map((l) => sim.people(l.i) / maxPpl), labels: L.map((l) => homesIn(l.i).length) };
     case 'house': return { values: L.map((l) => dry(l.i) / 8), labels: L.map((l) => dry(l.i).toFixed(1)), colors: L.map((l) => `rgba(185,132,90,${0.12 + 0.8 * Math.min(1, dry(l.i) / 8)})`) };
-    default: return { values: L.map((l) => l.level / l.cap), labels: sh.map((s) => Math.round(s * 100)) };
+    case 'forecast': return { values: L.map((l, i) => fc[i].overflowIn === null ? 0.05 : 1 - fc[i].overflowIn / 30), labels: fc.map((f) => f.overflowIn === null ? '—' : Math.ceil(f.overflowIn) + '日'), colors: fc.map((f) => f.overflowIn === null ? 'rgba(47,110,140,.12)' : `rgba(200,69,45,${0.25 + 0.7 * (1 - Math.min(1, f.overflowIn / 30))})`) };
+    default: return { values: L.map((l, i) => fc[i].after / l.cap), labels: fc.map((f) => f.inflow.toFixed(1)) };
   }
 }
 function drawDial(svg, { values, labels = [], sel = [], danger = [], interactive = false, colors = null }) {
-  let html = `<g class="hub" data-hub="1"><circle r="21" fill="#3F86B0"/><text y="1" class="light" style="font-size:9px">${interactive ? '全体' : '滝'}</text></g>`;
+  let html = `<g class="hub" data-hub="1"><circle r="21" fill="#3F86B0"/>${interactive ? `<text y="-5" class="light" style="font-size:8px">滝</text><text y="6" class="light" style="font-size:10px">${sim.state.fallNow.toFixed(1)}</text>` : '<text y="1" class="light" style="font-size:9px">滝</text>'}</g>`;
   L.forEach((l, i) => {
     const [r0, r1] = RADII[l.ring], a = angleOf(l.sector);
     const val = values[i];
@@ -419,13 +430,26 @@ function drawGates() {
   const lvl = grp.reduce((s, i) => s + L[i].level, 0), cap = grp.reduce((s, i) => s + L[i].cap, 0);
   const hp = Math.min(...grp.map((i) => L[i].health));
   const ppl = grp.reduce((s, i) => s + sim.people(i), 0);
-  const GMAX = 16 * grp.length;
+  const fc = sim.forecast(sh), sum = (k) => grp.reduce((s, i) => s + fc[i][k], 0);
+  const inflow = sum('inflow'), drain = sum('drain'), net = inflow - drain, after = sum('after');
+  const over = grp.map((i) => fc[i].overflowIn).filter((x) => x !== null);
+  const soon = over.length ? Math.min(...over) : null;
+  const GMAX = Math.max(cap, after) * 1.08;
+  const pct = (x) => Math.min(100, x / GMAX * 100);
+  const sign = (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2);
   $('selDetail').innerHTML = `<div class="mode" id="mode">${[['basin', '池'], ['sector', '方角'], ['ring', '段'], ['all', '全体']].map(([k, t]) => `<button data-k="${k}" aria-pressed="${selKind === k}">${t}</button>`).join('')}</div>
-    <div class="head"><b>${groupName(selKind, selKey)}</b><span>${ppl}人</span><span class="pct num">${Math.round(share * 100)}%</span></div>
+    <div class="head"><b>${groupName(selKind, selKey)}</b><span>${ppl}人</span></div>
     <div class="wrow"><button class="ghost" id="wMinus" aria-label="減らす">－</button><input type="range" min="0" max="10" step="1" value="${avgW}" id="wRange" aria-label="流す割合"><button class="ghost" id="wPlus" aria-label="増やす">＋</button></div>
-    <div class="gauge"><div class="wl" style="width:${Math.min(100, lvl / GMAX * 100)}%"></div><div class="d" style="left:${Math.min(99, cap / GMAX * 100)}%"></div></div>
-    <div class="read"><span class="num">水 ${lvl.toFixed(1)} ／ ダム ${cap.toFixed(1)}</span>${lvl / cap > 0.9 ? '<b>溢れそう</b>' : ''}</div>
-    <div class="read"><span>ダムの傷み</span>${hp < 0.35 ? '<b>崩れかけ</b>' : ''}</div>
+    <dl class="flow">
+      <dt>いま</dt><dd class="num">水 ${lvl.toFixed(1)} ／ ダム ${cap.toFixed(1)}</dd>
+      <dt>流す</dt><dd class="num">+${inflow.toFixed(2)} /日<small>滝 ${sim.state.fallNow.toFixed(1)} の ${Math.round(share * 100)}%</small></dd>
+      <dt>抜ける</dt><dd class="num">−${drain.toFixed(2)} /日<small>川へ</small></dd>
+      <dt>差し引き</dt><dd class="num ${net > 0 ? 'up' : 'down'}">${sign(net)} /日<small>${net > 0 ? '増えていく' : '減っていく'}</small></dd>
+      <dt>5 日後</dt><dd class="num">水 ${Math.min(after, cap).toFixed(1)}${after > cap ? '<b> 溢れる</b>' : ''}<small>${soon !== null ? `溢れるまで ${Math.ceil(soon)} 日` : 'このままなら溢れない'}</small></dd>
+    </dl>
+    <div class="gauge"><div class="wl" style="width:${pct(lvl)}%"></div><div class="p" style="left:${pct(Math.min(lvl, after))}%;width:${Math.abs(pct(after) - pct(lvl))}%;${after < lvl ? 'background:rgba(237,230,211,.7)' : ''}"></div><div class="d" style="left:${Math.min(99, pct(cap))}%"></div></div>
+    <div class="read"><span>■ いま　▨ 5 日後　｜ ダム</span></div>
+    <div class="read"><span>ダムの丈夫さ ${Math.round(hp * 100)}%</span>${hp < 0.35 ? '<b>崩れかけ</b>' : ''}</div>
     <div class="hp${hp < 0.35 ? ' bad' : ''}"><i style="width:${hp * 100}%"></i></div>`;
   $('mode').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
     const k = b.dataset.k;

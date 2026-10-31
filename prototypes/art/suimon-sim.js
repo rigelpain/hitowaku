@@ -379,8 +379,31 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
     homes.filter((h) => targets.includes(h.layer)).forEach((h) => { h.trust = clamp(h.trust - 0.1 / Math.sqrt(targets.length), 0, 1); });
   }
 
+  // 見込み：いまの配分のまま days 日たつと、池ごとの水かさがどうなるか（住人の働きと、よその溢れは入れない）
+  // inflow：流し込む量（/日）、drain：いま川へ抜ける量（/日）、net：差し引き、after：days 日後の水かさ、overflowIn：溢れるまでの日数
+  function forecast(shares, days = 5) {
+    const fall = state.fallNow;
+    const w = shares.map((x, i) => x * (state.easing.some((e) => e.basin === i) ? 0.5 : 1));
+    const sum = w.reduce((a, b) => a + b, 0) || 1;
+    const inflow = w.map((x) => fall * x / sum);
+    if (state.surge && !state.surge.pending) state.surge.targets.forEach((i) => { inflow[i] += state.surge.amount / state.surge.targets.length; });
+    state.sluices.forEach((sl) => { inflow[sl.from] -= sl.rate; inflow[sl.to] += sl.rate; });
+    return layers.map((l, i) => {
+      let lv = l.level, overflowIn = null;
+      for (let t = 0; t < 30; t += 0.25) {
+        lv = Math.max(0, lv + (inflow[i] - (DRAIN + DRAIN_K * lv)) * 0.25);
+        if (overflowIn === null && lv > l.cap) overflowIn = t + 0.25;
+        if (Math.abs(t + 0.25 - days) < 1e-6) var after = lv;
+      }
+      const drain = DRAIN + DRAIN_K * l.level;
+      // 水かさが落ち着く先（流し込む量と抜ける量がつり合うところ）
+      const settle = Math.max(0, (inflow[i] - DRAIN) / DRAIN_K);
+      return { inflow: inflow[i], drain, net: inflow[i] - drain, after, overflowIn, settle };
+    });
+  }
+
   return {
-    state, tick, answer, routeSurge, sight, people, sunkCount, N, S,
+    state, tick, answer, routeSurge, sight, people, sunkCount, N, S, forecast,
     ringPeople: (ring) => layers.filter((l) => l.ring === ring).reduce((s, l) => s + people(l.i), 0),
   };
 }
