@@ -42,6 +42,8 @@
 //
 // 速さはすべて、一行の標準の速さ PACE に対する比で表す。
 
+import { ja, call, warmReply, flatReply, topic, museBank } from './voice.js';
+
 export const COMMON = { elder: 0.6, adult: 1.0 };
 export const PARTY_GOAL = '港を出る最後の船に全員で乗る';
 
@@ -53,16 +55,6 @@ export const MINDS = {
   nagi:  { kind: 'adult', goal: '途中で拾われた。行き先はまだない', commit: 0.3, policy: { adapt: 0.7, observe: true,  learn: 0.3, metacog: false, voice: 'hide',    trust: 0.2, stereo: 0.6, selfLearn: 0.1,  depend: 0.8, talk: 0.1 } },
 };
 
-const KIND_JA = { elder: 'お年寄り', adult: '大人' };
-// 自分から振る話。目的や立場がにじむようにする
-const TOPICS = {
-  toru: ['川まではもう少しだ', '食料は足りそうだ'],
-  akari: ['船に間に合うかな', '子どもたち待ってるだろうな'],
-  fumio: ['この道は昔よく通ったんだ', '町が沈むなんてまだ信じられない'],
-  yuma: ['この景色撮っておきたいな', '町の写真あとで見せるね'],
-  nagi: ['この道はどこまで続くんですか'],
-};
-const WARM = ['いいですね', 'そうですね', 'うん楽しみ', 'ほんとに'];
 
 // 内側の状態の幅。旅ごとにこの中から決まる
 const INNER = {
@@ -70,36 +62,6 @@ const INNER = {
   other: { vision: [0.8, 1], reminisce: [0.1, 0.4], will: [0.6, 0.95] },
 };
 
-// 思いの種。[深さ, 文] の組。目に入ったもの（tag）ごと、人ごとに持つ
-const MUSE = {
-  fumio: {
-    road: [[1, '道の端がよく見えない。足もとの色が溶けている'], [1, '前を歩く背中がぼやけて見える']],
-    tree: [[1, 'この木はもっと低かった気がする'], [2, '妻はこういう木の下で弁当を広げるのが好きだった'], [2, '子どものころ、この先の林で迷ったことがある']],
-    rock: [[1, '道ばたの石に腰をおろしたくなる'], [2, '父はこんな石を積んで畑の境にしていた']],
-    river: [[1, '水の音だけはよく聞こえる'], [2, 'この川で孫と釣りをした。あの子は魚より石を集めていた']],
-    behind: [[1, '振り返ってももう屋根は見えない'], [2, '町の時計は誰が止めるんだろう'], [3, '町と一緒に沈むのも悪くなかった']],
-    free: [[2, '船に乗ったら、もう戻れない'], [2, '孫に会えたら何を話そう。話すことが思いつかない'], [3, 'このまま歩くのをやめたら、誰か困るだろうか'], [3, '港に着かなくてもいい気がしてきた']],
-    toru: [[2, '透くんは父親に似てきた']], akari: [[2, '灯さんは急いでいる。若いうちはそれでいい']],
-    yuma: [[2, '由真さんのカメラに、町はどう写っているんだろう']], nagi: [[2, 'あの子は昔の自分に似ている']],
-  },
-  toru: {
-    road: [[1, 'あと何日で港に着くか数え直す']], river: [[1, '橋は無事だろうか']],
-    free: [[1, '全員を乗せる。それだけ考えればいい'], [2, '父ならこういうときどうしただろう']],
-    fumio: [[1, '文雄さん、また止まっている。足が痛むのかな']],
-  },
-  akari: {
-    road: [[1, '急げば一日早く着ける']], free: [[2, '子どもたちは港で泣いていないだろうか'], [2, '先に一人で行けたら楽なのに']],
-    fumio: [[1, '文雄さんに合わせていたら船に遅れる']],
-  },
-  yuma: {
-    tree: [[1, 'この光は撮っておきたい']], river: [[1, '川の色が町の写真と同じだ']], rock: [[1, '石の苔がきれいだ']],
-    free: [[2, '写真に残せば、沈んでも町はある']], nagi: [[1, 'ナギさんも写してあげたい']],
-  },
-  nagi: {
-    road: [[1, '道はどこまで続くんだろう']], free: [[2, 'この人たちは私をどこまで連れて行くんだろう'], [2, '行き先がある人はいいな']],
-    fumio: [[1, '文雄さんは時々遠くを見ている']],
-  },
-};
 // 実際の力の幅：一般常識が当たる旅も、外れる旅もある
 const ABILITY_RANGE = { elder: [0.5, 1.0], adult: [0.88, 1.15] };
 const VOICES = ['share', 'declare', 'hide'];
@@ -156,12 +118,12 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       const slow = slowest(m);
       if (!slow) return;
       const v = m.belief[slow.i];
-      if (m.policy.metacog) emit(t, m, 'inner', `${slow.first}さんは${KIND_JA[slow.kind]}だから、ゆっくりだろう`, { about: slow.i, belief: v });
+      if (m.policy.metacog) emit(t, m, 'inner', ja(m, 'stereoOther', slow), { about: slow.i, belief: v });
       // 方針を言うと、言った人の見積もりも一緒に伝わる
-      if (m.policy.metacog && m.policy.voice === 'declare' && m.policy.adapt > 0.5) say(t, m, `${slow.first}さんに合わせて、ゆっくり行こう`, { about: slow.i, value: v });
+      if (m.policy.metacog && m.policy.voice === 'declare' && m.policy.adapt > 0.5) say(t, m, ja(m, 'declareSlow', slow), { about: slow.i, value: v });
     });
     minds.forEach((m) => {
-      if (m.policy.metacog && m.belief[m.i] < 0.9 && m.policy.stereo > 0.5) emit(t, m, 'inner', '僕は年だから、みんなより遅い', { about: m.i, belief: m.belief[m.i] });
+      if (m.policy.metacog && m.belief[m.i] < 0.9 && m.policy.stereo > 0.5) emit(t, m, 'inner', ja(m, 'stereoSelf'), { about: m.i, belief: m.belief[m.i] });
     });
   }
 
@@ -247,7 +209,7 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
   let depth = 2;
   // 思いの種から、まだ浮かべていない文を選ぶ。tag が無ければ、そばの人や目的についての思いにする
   function pick(m, tags) {
-    const bank = MUSE[m.id] || {};
+    const bank = museBank(m);
     for (const tag of tags) {
       const list = (bank[tag] || []).filter(([d, text]) => d <= depth && !m.mused.has(text));
       if (list.length) return list[Math.floor(r() * list.length)][1];
@@ -286,12 +248,12 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       if (!o || acts[o.i] !== 'linger' || t < m.attrCool || !m.policy.observe) return;
       m.attrCool = t + 8;
       if (m.why[o.i] === 'memory') {
-        if (m.policy.metacog) emit(t, m, 'inner', `${o.first}さん、また昔を思い出しているのかな`, { about: o.i });
+        if (m.policy.metacog) emit(t, m, 'inner', ja(m, 'attrMemory', o), { about: o.i });
       } else if (m.belief[o.i] < 0.85) {
-        if (m.policy.metacog) emit(t, m, 'inner', `${o.first}さんまた止まった。やっぱり足が弱いのかな`, { about: o.i });
+        if (m.policy.metacog) emit(t, m, 'inner', ja(m, 'attrLegs', o), { about: o.i });
         else emit(t, m, 'act', `${o.first}さんの見積もりが下がる`, { aware: false, short: '見積もりが下がる' });
         m.belief[o.i] = Math.max(0.3, m.belief[o.i] - 0.05);
-      } else if (m.policy.metacog) emit(t, m, 'inner', `${o.first}さん、何を見ているんだろう`, { about: o.i });
+      } else if (m.policy.metacog) emit(t, m, 'inner', ja(m, 'attrWhat', o), { about: o.i });
     });
   }
 
@@ -336,45 +298,44 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
 
   // lingering：疲れではなく、何かに見入ったり振り返ったりして止まっていた
   function checkIn(t, m, o, lingering = false) {
-    say(t, m, `${o.first}さん、大丈夫？`);
+    say(t, m, ja(m, 'checkIn', o));
     let worried = false;
-    if (!o.policy.metacog) say(t, o, 'うん');
+    if (!o.policy.metacog) say(t, o, ja(o, 'replyFlat'));
     else if (o.policy.voice === 'share') {
-      say(t, o, lingering ? 'ちょっと昔を思い出していた' : '少し休みたい');
+      say(t, o, ja(o, lingering ? 'replyMemory' : 'replyTired'));
       worried = !lingering;
       // 本人の言葉を信じた人は、立ち止まる理由を足のせいにしなくなる
       if (lingering) minds.forEach((q) => { if (q !== o && q.policy.trust >= 0.3) q.why[o.i] = 'memory'; });
     }
-    else if (o.policy.voice === 'declare') say(t, o, '先に行っていいよ');
-    else { say(t, o, '大丈夫'); emit(t, o, 'inner', lingering ? '本当は昔のことを考えていた' : '本当は少し疲れている'); }
+    else if (o.policy.voice === 'declare') say(t, o, ja(o, 'replyGoAhead'));
+    else { say(t, o, ja(o, 'replyFine')); emit(t, o, 'inner', ja(o, lingering ? 'innerMemory' : 'innerTired')); }
     // 言葉と見た目のずれ：観察する人は、遅れていることを自分の目でも見ている
     if (!worried && m.policy.observe) {
       worried = true;
-      if (m.policy.metacog) emit(t, m, 'inner', '大丈夫って言うけど遅れている');
+      if (m.policy.metacog) emit(t, m, 'inner', ja(m, 'mismatch'));
     }
     near(o, m, 0.1); near(m, o, 0.05);
     if (o.policy.voice === 'declare' && o.policy.metacog) {
-      if (m.commit >= 0.8) { say(t, m, '置いていかないよ'); if (m.i === leader) m.easeUntil = t + 5; else accompany(t, m, o, 6, '付き添う'); }
-      else if (m.policy.metacog) emit(t, m, 'inner', '本人がそう言うなら');
+      if (m.commit >= 0.8) { say(t, m, ja(m, 'noLeave')); if (m.i === leader) m.easeUntil = t + 5; else accompany(t, m, o, 6, '付き添う'); }
+      else if (m.policy.metacog) emit(t, m, 'inner', ja(m, 'ifTheySay'));
       return;
     }
     if (!worried) return;
     // 先頭は列を離れず、一行全体の歩みを落とす
-    if (m.i === leader) { say(t, m, '少しゆっくり行こう'); m.easeUntil = t + 5; return; }
+    if (m.i === leader) { say(t, m, ja(m, 'easeUp')); m.easeUntil = t + 5; return; }
     if (m.policy.adapt >= 0.3 || m.affinity[o.i] >= 0.5) accompany(t, m, o, 6, '付き添う');
   }
 
   function chat(t, m, o) {
-    const lines = TOPICS[m.id];
-    say(t, m, `${o.first}さん、${lines[Math.floor(r() * lines.length)]}`);
+    say(t, m, `${call(m, o)}、${topic(m, r, o)}`);
     if (o.policy.talk < 0.2 && o.affinity[m.i] < 0.45) {
       // 返事をしない。自覚があれば、言葉が出なかったことが内心に残る
-      if (o.policy.metacog) emit(t, o, 'inner', '何て返せばいいか分からない');
-      if (m.policy.metacog) emit(t, m, 'inner', '返事がない');
+      if (o.policy.metacog) emit(t, o, 'inner', ja(o, 'noReplyInner'));
+      if (m.policy.metacog) emit(t, m, 'inner', ja(m, 'gotNoReply'));
       near(m, o, -0.03);
       return;
     }
-    say(t, o, o.affinity[m.i] > 0.55 ? WARM[Math.floor(r() * WARM.length)] : 'うん');
+    say(t, o, o.affinity[m.i] > 0.55 ? warmReply(o, r) : flatReply(o));
     near(m, o, 0.08); near(o, m, 0.06);
     accompany(t, m, o, 5, '話しながら歩く');
   }
@@ -384,10 +345,10 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     m.rushed = true;
     const L = minds[leader];
     if (!m.policy.metacog) { emit(t, m, 'act', '足が前へ出がちになる', { aware: false, short: '足が前へ出る' }); return; }
-    if (m.policy.voice === 'hide') { emit(t, m, 'inner', '本当はもっと急ぎたいのに'); return; }
-    say(t, m, `${L.first}さん、もう少し急げませんか。船に間に合わないかも`);
-    if (L.commit >= 0.7) { say(t, L, '全員で行こう'); near(m, L, -0.05); if (m.policy.metacog) emit(t, m, 'inner', '急ぎたいのに'); }
-    else { say(t, L, 'そうだね。少し急ごう'); L.policy.adapt = Math.max(0, L.policy.adapt - 0.3); near(m, L, 0.05); }
+    if (m.policy.voice === 'hide') { emit(t, m, 'inner', ja(m, 'rushHide')); return; }
+    say(t, m, ja(m, 'rushSay', L));
+    if (L.commit >= 0.7) { say(t, L, ja(L, 'leaderAll')); near(m, L, -0.05); if (m.policy.metacog) emit(t, m, 'inner', ja(m, 'rushInner')); }
+    else { say(t, L, ja(L, 'leaderOk')); L.policy.adapt = Math.max(0, L.policy.adapt - 0.3); near(m, L, 0.05); }
   }
 
   // 見積もりと実際とのずれに気づいたとき
@@ -397,25 +358,24 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     const meta = m.policy.metacog;
     // 合わせてもらっている側：周りが自分の力より遅いと気づく
     if (o.i === leader && !faster && slowest(o) === m && m.seen[o.i].avg < ownPace(m) - 0.1) {
-      if (meta) emit(t, m, 'inner', `みんな僕に合わせてくれている。本当はもう少し歩ける`);
-      if (meta && m.policy.voice === 'share' && !m.saidSelf) { m.saidSelf = true; say(t, m, '合わせなくて大丈夫。僕はまだ歩けるよ', { about: m.i, value: m.belief[m.i] }); }
-      else if (meta && m.policy.voice === 'declare') say(t, m, '先に行っていいよ');
-      else if (meta) emit(t, m, 'inner', '（言わないでおこう）');
+      if (meta) emit(t, m, 'inner', ja(m, 'accommodated'));
+      if (meta && m.policy.voice === 'share' && !m.saidSelf) { m.saidSelf = true; say(t, m, ja(m, 'sayCanWalk'), { about: m.i, value: m.belief[m.i] }); }
+      else if (meta && m.policy.voice === 'declare') say(t, m, ja(m, 'sayGoAhead'));
+      else if (meta) emit(t, m, 'inner', ja(m, 'hideNote'));
       return;
     }
-    const word = faster ? '思ったより速い' : '思ったより遅い';
-    if (meta) emit(t, m, 'inner', `${o.first}さん、${word}`, { about: o.i, seen: m.seen[o.i].avg, belief: m.belief[o.i] });
+    if (meta) emit(t, m, 'inner', ja(m, faster ? 'noticeFaster' : 'noticeSlower', o), { about: o.i, seen: m.seen[o.i].avg, belief: m.belief[o.i] });
     else emit(t, m, 'act', `${o.first}さんの見積もりが変わり始めた`, { aware: false, short: '見積もりが動いた' });
     if (!meta) return;
-    if (m.policy.voice === 'share') say(t, m, `${o.first}さん、けっこう${faster ? '速い' : 'ゆっくり'}ですね`, { about: o.i, value: m.seen[o.i].avg });
+    if (m.policy.voice === 'share') say(t, m, ja(m, faster ? 'shareFaster' : 'shareSlower', o), { about: o.i, value: m.seen[o.i].avg });
     else if (m.policy.voice === 'declare' && o.i === leader) {
       // 先頭の歩みについては、自分の出せる速さと比べて言う
       const own = ownPace(m), seen = m.seen[o.i].avg;
-      if (seen > own + 0.05) say(t, m, '少し待ってほしい');
-      else if (seen < own - 0.1) say(t, m, 'もう少し速くても大丈夫');
+      if (seen > own + 0.05) say(t, m, ja(m, 'askWait'));
+      else if (seen < own - 0.1) say(t, m, ja(m, 'askFaster'));
     }
-    else if (m.policy.voice === 'declare') say(t, m, faster ? '少しペースを上げよう' : 'もう少しゆっくり行こう');
-    else emit(t, m, 'inner', '（言わないでおこう）');
+    else if (m.policy.voice === 'declare') say(t, m, ja(m, faster ? 'declareFaster' : 'declareSlower'));
+    else emit(t, m, 'inner', ja(m, 'hideNote'));
   }
 
   // 自分の見積もりが、歩き出したときから目に見えて変わったことに気づく
@@ -425,11 +385,11 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
     m.selfNoticed = true;
     const up = d > 0;
     if (!m.policy.metacog) { emit(t, m, 'act', `自分の見積もり ${fmt(m.selfStart)} → ${fmt(m.belief[m.i])}`, { aware: false, short: up ? '足が軽くなる' : '足が重くなる' }); return; }
-    emit(t, m, 'inner', up ? '思ったより歩ける。まだ足が軽い' : 'やっぱり僕は遅いのかな', { about: m.i, belief: m.belief[m.i] });
+    emit(t, m, 'inner', ja(m, up ? 'selfLight' : 'selfHeavy'), { about: m.i, belief: m.belief[m.i] });
     if (m.saidSelf) return; // もう伝えてある
-    if (m.policy.voice === 'share' && up) { m.saidSelf = true; say(t, m, '思ったより歩けるよ。合わせなくて大丈夫', { about: m.i, value: m.belief[m.i] }); }
-    else if (m.policy.voice === 'declare' && up) say(t, m, '少し速く行っても大丈夫');
-    else emit(t, m, 'inner', '（言わないでおこう）');
+    if (m.policy.voice === 'share' && up) { m.saidSelf = true; say(t, m, ja(m, 'saySelfLight'), { about: m.i, value: m.belief[m.i] }); }
+    else if (m.policy.voice === 'declare' && up) say(t, m, ja(m, 'declareSelfLight'));
+    else emit(t, m, 'inner', ja(m, 'hideNote'));
   }
 
   // 発話：聞いた人は trust の割合で見積もりを動かす。自分のことを言われたら、depend の割合で自分の見積もりを動かす
@@ -442,8 +402,8 @@ export function createMinds(people, { leader = 0, policies = {}, seed = 7 } = {}
       const before = o.belief[claim.about];
       o.belief[claim.about] += w * (claim.value - before);
       if (Math.abs(o.belief[claim.about] - before) < 0.01) return; // 見積もりが動かなければ、聞き流したことにする
-      const whom = claim.about === o.i ? '自分' : minds[claim.about].first + 'さん';
-      if (o.policy.metacog) emit(t, o, 'hear', `${m.first}さんの話で、${whom}の見積もり ${fmt(before)} → ${fmt(o.belief[claim.about])}`, { short: 'そうなんだ' });
+      const whom = claim.about === o.i ? '自分' : minds[claim.about].first + 'さん'; // ログの説明なので、呼び方ではなく名前で書く
+      if (o.policy.metacog) emit(t, o, 'hear', `${m.first}さんの話で、${whom}の見積もり ${fmt(before)} → ${fmt(o.belief[claim.about])}`, { short: ja(o, 'hearShort') });
       else emit(t, o, 'act', `${m.first}さんの話を聞いて、${whom}の見積もり ${fmt(before)} → ${fmt(o.belief[claim.about])}`, { aware: false, short: '見積もりが動いた' });
     });
   }
