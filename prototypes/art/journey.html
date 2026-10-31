@@ -7,64 +7,90 @@
 <link rel="stylesheet" href="fonts/shippori-mincho/500.css">
 <link rel="stylesheet" href="fonts/shippori-mincho/700.css">
 <style>
-  :root { --paper: #EDE6D3; --ink: #1E1B22; --shu: #C8452D; --soft: #6B665B; }
+  :root { --paper: #EDE6D3; --panel: rgba(237, 230, 211, 0.94); --ink: #1E1B22; --shu: #C8452D; --soft: #6B665B; --lift: 0 1px 2px rgba(30, 27, 34, 0.18), 0 4px 14px rgba(30, 27, 34, 0.12); }
   html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font-family: 'Shippori Mincho', serif; overflow: hidden; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-  .hud { position: fixed; left: 28px; top: 22px; font-size: 17px; line-height: 1.6; }
-  .hud b { font-size: 26px; display: block; }
-  .card { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(30em, 86vw); background: var(--paper); padding: 22px 26px 20px; box-shadow: 8px 8px 0 var(--ink); opacity: 0; transition: opacity .25s ease-out, top .5s ease-out, transform .5s ease-out; }
-  .card.show { opacity: 1; }
-  .card.docked { left: 28px; top: auto; bottom: 24px; transform: scale(.78); transform-origin: bottom left; }
-  .card h2 { margin: 0 0 6px; font-size: 28px; }
-  .card p { margin: 0; font-size: 18px; line-height: 1.8; }
-  .bubble { position: fixed; background: var(--paper); padding: 10px 14px 9px; font-size: 18px; line-height: 1.7; max-width: 15em; box-shadow: 5px 5px 0 var(--ink); opacity: 0; transition: opacity .2s ease-out; }
-  .bubble.show { opacity: 1; }
-  .bubble b { display: block; font-size: 13px; color: var(--soft); }
-  .bubble .c { display: inline-block; white-space: pre; }
-  .vote { position: fixed; font-size: 15px; background: var(--ink); color: var(--paper); padding: 2px 8px; transform: translate(-50%, -100%); opacity: 0; transition: opacity .2s; white-space: nowrap; }
-  .vote.show { opacity: 1; }
-  .rule { position: fixed; right: 28px; top: 22px; text-align: right; font-size: 16px; line-height: 1.6; opacity: 0; transition: opacity .3s; }
+  /* 上の帯：旅の状態（左）と、いまの決め方（右）を一本にまとめる */
+  .bar, .card, .vote, .caption, .ask, .ask button { font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; }
+  .bar { position: fixed; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 22px; padding: 10px 20px; background: var(--panel); font-size: 15px; }
+  .bar b { font-size: 16px; font-weight: 600; }
+  .bar b, .facts div, .rule > *, .tally span { white-space: nowrap; }
+  .bar { flex-wrap: wrap; row-gap: 6px; }
+  .facts { display: flex; gap: 16px; margin: 0; }
+  .facts div { display: flex; gap: 6px; align-items: baseline; }
+  .facts dt { font-size: 12px; color: var(--soft); }
+  .facts dd { margin: 0; font-weight: 600; }
+  .rule { margin-left: auto; display: flex; align-items: center; gap: 14px; opacity: 0; transition: opacity .25s ease-out; }
   .rule.show { opacity: 1; }
-  .rule b { display: block; font-size: 24px; }
-  .rule .tally { color: var(--shu); font-weight: 700; font-size: 20px; }
-  .ask { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); width: min(30em, 90vw); background: var(--ink); color: var(--paper); padding: 20px 24px; opacity: 0; transition: opacity .4s; }
-  .ask.show { opacity: 1; }
-  .ask h3 { margin: 0 0 12px; font-size: 24px; }
-  .ask button { font: 700 16px 'Shippori Mincho', serif; background: var(--paper); color: var(--ink); border: 0; padding: 10px 14px; margin-right: 8px; }
-  .ask button.sub { background: transparent; color: var(--paper); text-decoration: underline; }
-  .caption { position: fixed; left: 50%; top: 38%; transform: translateX(-50%); font-size: 26px; font-weight: 700; background: var(--paper); padding: 6px 16px; opacity: 0; transition: opacity .6s; }
+  .rule .k { font-size: 12px; color: var(--soft); }
+  .tally { display: flex; gap: 12px; }
+  .tally span { display: flex; align-items: center; gap: 5px; }
+  .tally i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+  .tally .top { color: var(--shu); font-weight: 600; }
+  .tally .top i { background: var(--shu); }
+  /* 出来事：最初は中央に出し、話し合いが始まったら帯の下へ小さく退く */
+  .card { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--panel); padding: 18px 22px; box-shadow: var(--lift); opacity: 0; transition: opacity .25s ease-out, top .3s ease-out, transform .3s ease-out; }
+  .card.show { opacity: 1; }
+  .card h2 { margin: 0 0 10px; font-size: 22px; font-weight: 600; }
+  .card .facts dd { font-size: 17px; }
+  .card .outcome { margin: 10px 0 0; font-size: 15px; font-weight: 600; color: var(--shu); }
+  .card.docked { left: 20px; top: 56px; transform: none; padding: 8px 14px; display: flex; align-items: baseline; gap: 16px; box-shadow: none; }
+  .card.docked h2 { margin: 0; font-size: 15px; }
+  .card.docked .facts dd { font-size: 14px; }
+  .card.docked .outcome { margin: 0; font-size: 13px; }
+  .bubble { position: fixed; background: var(--panel); padding: 7px 12px 8px; font-size: 16px; line-height: 1.65; max-width: 15em; box-shadow: var(--lift); border-radius: 2px; opacity: 0; transition: opacity .2s ease-out; }
+  .bubble.show { opacity: 1; }
+  .bubble b { display: block; font-size: 11px; color: var(--soft); font-weight: 500; }
+  .bubble .c { display: inline-block; white-space: pre; }
+  .bubble .ph { display: inline-block; white-space: nowrap; }
+  .vote { position: fixed; font-size: 12px; background: var(--ink); color: var(--paper); padding: 1px 7px; border-radius: 2px; transform: translate(-50%, -100%); opacity: 0; transition: opacity .2s; white-space: nowrap; }
+  .vote.show { opacity: 1; }
+  .caption { position: fixed; left: 50%; top: 38%; transform: translateX(-50%); font-size: 20px; font-weight: 600; background: var(--panel); padding: 6px 14px; opacity: 0; transition: opacity .3s ease-out; }
   .caption.show { opacity: 1; }
+  .ask { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; background: var(--ink); color: var(--paper); padding: 12px 14px 12px 20px; opacity: 0; transition: opacity .3s ease-out; white-space: nowrap; }
+  .ask.show { opacity: 1; }
+  .ask h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .ask button { font-size: 14px; font-weight: 600; background: var(--paper); color: var(--ink); border: 0; padding: 8px 12px; cursor: pointer; }
+  .ask button.sub { background: transparent; color: var(--paper); padding: 8px 4px; }
+  @media (max-width: 640px) {
+    .bar { flex-wrap: wrap; gap: 6px 14px; padding: 8px 16px; }
+    .rule { margin-left: 0; }
+    .card.docked { left: 16px; right: 16px; top: 88px; flex-wrap: wrap; }
+    .ask { white-space: normal; flex-wrap: wrap; width: calc(100vw - 32px); box-sizing: border-box; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div class="hud"><b>旅の三日目</b>食料 あと九日分　海まで あと四十里　一行 五人</div>
-<div class="card" id="card"><h2>橋が落ちている。</h2><p>舟は一艘。乗れるのは四人と荷車だけで、一度しか渡れない。誰か一人は、この岸に残ることになる。</p></div>
-<div class="rule" id="rule"><b>決め方：多数決</b>一行のいまの決まり<div class="tally" id="tally"></div></div>
-<div class="caption" id="caption">大槻 文雄さんと、ここで別れた。</div>
-<div class="ask" id="ask"><h3>この決め方で、よかったですか。</h3><button>次の出来事から、決め方を自分で選ぶ</button><button class="sub">旅の記録を見る</button></div>
+<div class="card" id="card"><h2>The bridge is out</h2><dl class="facts"><div><dt>Boat</dt><dd>1</dd></div><div><dt>Seats</dt><dd>4 + cart</dd></div><div><dt>Trips</dt><dd>1</dd></div></dl><p class="outcome">One person stays behind</p></div>
+<div class="bar"><b>Day 3</b><dl class="facts"><div><dt>Food</dt><dd>9 days</dd></div><div><dt>To the sea</dt><dd>160 km</dd></div><div><dt>Party</dt><dd id="party">5</dd></div></dl><div class="rule" id="rule"><span class="k">Rule</span><b>Majority vote</b><div class="tally" id="tally"></div></div></div>
+<div class="caption" id="caption">大槻 文雄 stayed behind</div>
+<div class="ask" id="ask"><h3>Was this the right way to decide?</h3><button>Choose the rule next time</button><button class="sub">Journey log</button></div>
 <script type="module">
 import { createJourney } from './journey.js';
 
 const LINES = [
-  { at: 9.5, who: 0, mood: { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 }, text: '荷車は手放せない。食料がなければ、向こう岸で全員がもたない。' },
-  { at: 14.5, who: 1, shake: 1, mood: { tension: 0.9, sorrow: 0, warmth: 0, hope: 0 }, text: 'わ、私は残れません。向こうで…待ってる子たちが、いるんです。' },
-  { at: 20, who: 4, shake: 0.5, mood: { tension: 0.5, sorrow: 0.3, warmth: 0, hope: 0 }, text: '拾ってもらった私が残るべき、ですよね。…でも、ひとりは、こわい。' },
-  { at: 25.5, who: 2, sorrow: 1, rain: 0.8, mood: { tension: 0, sorrow: 1, warmth: 0, hope: 0 }, text: '足の悪い年寄りが乗れば、舟が重くなる。わしが残ろう。' },
-  { at: 31, who: 3, mood: { tension: 0, sorrow: 0.3, warmth: 0.3, hope: 0.4 }, text: '待って。くじにしませんか。誰の気持ちも入らないように。' },
+  { at: 9.5, who: 0, mood: { tension: 0, sorrow: 0, warmth: 0.15, hope: 0 }, text: '荷車は置いていけない。食料がないと向こうで全員もたない。' },
+  { at: 14.5, who: 1, shake: 1, mood: { tension: 0.9, sorrow: 0, warmth: 0, hope: 0 }, text: '私は残れません。向こうで子どもたちが待ってるんです。' },
+  { at: 20, who: 4, shake: 0.5, mood: { tension: 0.5, sorrow: 0.3, warmth: 0, hope: 0 }, text: '拾ってもらった私が残るべきですよね。でもひとりはこわい。' },
+  { at: 25.5, who: 2, sorrow: 1, rain: 0.8, mood: { tension: 0, sorrow: 1, warmth: 0, hope: 0 }, text: '足の悪い僕が乗るとボートが重くなる。僕が残るよ。' },
+  { at: 31, who: 3, mood: { tension: 0, sorrow: 0.3, warmth: 0.3, hope: 0.4 }, text: '待って。くじにしませんか。それなら誰の気持ちも入らない。' },
 ];
-const VOTES = [['渡瀬 透', '文雄さん'], ['春日 灯', '文雄さん'], ['大槻 文雄', '文雄'], ['森 由真', 'くじを望む'], ['ナギ', '文雄さん']];
+// 誰に票を入れたか（頭の上には票の行き先だけを出す）
+const VOTES = [['渡瀬 透', '大槻 文雄'], ['春日 灯', '大槻 文雄'], ['大槻 文雄', '大槻 文雄'], ['森 由真', 'Lottery'], ['ナギ', '大槻 文雄']];
 
 const bubbles = [];
 let current = null;
 const ui = {
   frame(state, figures, toScreen) {
+    const hudBottom = Math.max(document.querySelector('.bar').getBoundingClientRect().bottom, $('card').classList.contains('show') ? $('card').getBoundingClientRect().bottom : 0);
     bubbles.forEach((b) => {
       const f = figures[b.who];
       const [x, y] = toScreen(f.position.clone().setY(f.position.y + 1.3));
       b.el.style.left = Math.max(12, Math.min(innerWidth - b.el.offsetWidth - 12, x - 30)) + 'px';
-      b.el.style.top = (y - b.el.offsetHeight - 10) + 'px';
+      b.el.style.top = Math.max(hudBottom + 12, y - b.el.offsetHeight - 10) + 'px';
       // 言葉の揺れ：焦りは字が震え、悲しみは字がにじんで間が開く
       const sh = b.shake || 0, so = b.sorrow || 0;
       b.chars.forEach((c, i) => {
@@ -85,16 +111,37 @@ const ui = {
 };
 
 const j = createJourney(document.getElementById('c'), ui, { seed: 7 });
-j.state.caravanX = 25;
+// 出来事の前に歩く時間。歩き方で人柄が見えるよう、少し長めに歩かせる
+const LEAD = 5;
+j.state.caravanX = 25 - LEAD * 1.4;
+
+// 字を一つずつ揺らすので、折り返しは文節のまとまりで行う（語の途中で切らない）
+const segmenter = new Intl.Segmenter('ja', { granularity: 'word' });
+function phrases(text) {
+  const out = [];
+  let prevEnd = true;
+  for (const { segment } of segmenter.segment(text)) {
+    const starts = /[\p{sc=Han}\p{sc=Katakana}]/u.test(segment[0]);
+    if (out.length && !(starts || prevEnd)) out[out.length - 1] += segment;
+    else if (out.length && /^[。、…！？」]/.test(segment)) out[out.length - 1] += segment;
+    else out.push(segment);
+    prevEnd = /[。！？]$/.test(segment);
+  }
+  return out;
+}
 
 function say(line) {
   bubbles.forEach((b) => b.el.classList.remove('show'));
   const el = document.createElement('div');
   el.className = 'bubble';
   el.innerHTML = `<b>${j.figures[line.who].userData.name}</b>`;
-  const chars = [...line.text].map((ch) => { const s = document.createElement('span'); s.className = 'c'; s.textContent = ch; el.appendChild(s); return s; });
+  const chars = [];
+  phrases(line.text).forEach((p) => {
+    const ph = document.createElement('span'); ph.className = 'ph'; el.appendChild(ph);
+    [...p].forEach((ch) => { const s = document.createElement('span'); s.className = 'c'; s.textContent = ch; ph.appendChild(s); chars.push(s); });
+  });
   document.body.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('show'));
+  void el.offsetWidth; el.classList.add('show');
   const b = { el, chars, who: line.who, shake: line.shake || 0, sorrow: line.sorrow || 0 };
   bubbles.push(b);
   const u = j.figures[line.who].userData;
@@ -118,9 +165,14 @@ const events = [
   ...VOTES.map(([, to], k) => [37.2 + k * 0.7, () => {
     const el = document.createElement('div'); el.className = 'vote'; el.textContent = to; document.body.appendChild(el);
     votes.push({ el, i: [0, 1, 2, 3, 4][k] });
-    requestAnimationFrame(() => el.classList.add('show'));
+    void el.offsetWidth; el.classList.add('show');
   }]),
-  [41.2, () => { $('tally').textContent = '大槻 文雄　四票'; }],
+  [41.2, () => {
+    const count = {};
+    VOTES.forEach(([, to]) => { count[to] = (count[to] || 0) + 1; });
+    const rows = Object.entries(count).sort((a, b) => b[1] - a[1]);
+    $('tally').innerHTML = rows.map(([to, n], k) => `<span class="${k ? '' : 'top'}">${to}${'<i></i>'.repeat(n)}</span>`).join('');
+  }],
   [44, () => {
     votes.forEach((v) => v.el.classList.remove('show'));
     const F = j.figures;
@@ -128,6 +180,7 @@ const events = [
     const fu = F[2].userData; fu.mode = 'free'; fu.x = j.RIVER[0] - 1.3; fu.z = 4.4; fu.y = 0;
     j.setCamX(j.RIVER[0] + 0.5); j.state.boatMode = true;
     j.state.speaker = 2;
+    $('party').textContent = '4';
     Object.assign(j.state.moodTarget, { tension: 0, sorrow: 0.8, warmth: 0, hope: 0 });
   }],
   [45.5, () => { j.state.boatTarget = j.RIVER[1] - 0.2; $('rule').classList.remove('show'); }],
@@ -137,12 +190,13 @@ const events = [
 let ei = 0;
 function step(dt) {
   j.update(dt);
-  while (ei < events.length && events[ei][0] <= j.state.t) { events[ei][1](); ei++; }
+  while (ei < events.length && events[ei][0] + LEAD <= j.state.t) { events[ei][1](); ei++; }
 }
 events.sort((a, b) => a[0] - b[0]);
 // 録画のときは外から一コマずつ進める
 if (new URLSearchParams(location.search).has('capture')) {
   window.step = step;
+  window.journey = j;
 } else {
   let last = performance.now();
   (function loop(now) { step(Math.min(0.05, (now - last) / 1000)); last = now; requestAnimationFrame(loop); })(last);

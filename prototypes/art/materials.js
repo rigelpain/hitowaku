@@ -17,7 +17,13 @@ function patch(material, { uniforms = {}, vertexPre = '', vertex = '', fragmentP
     Object.assign(shader.uniforms, shared, uniforms);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vWorld; varying vec3 vLocal; varying vec3 vWNormal;\n${vertexPre}`)
-      .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>\nvWorld = (modelMatrix * vec4(transformed, 1.0)).xyz; vLocal = position; vWNormal = normalize(mat3(modelMatrix) * objectNormal);\n${vertex}`);
+      .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+        // InstancedMesh でも模様が世界座標に貼りつくよう、instanceMatrix を通す
+        mat4 wm = modelMatrix;
+        #ifdef USE_INSTANCING
+          wm = modelMatrix * instanceMatrix;
+        #endif
+        vWorld = (wm * vec4(transformed, 1.0)).xyz; vLocal = position; vWNormal = normalize(mat3(wm) * objectNormal);\n${vertex}`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\nvarying vec3 vWorld; varying vec3 vLocal; varying vec3 vWNormal;\nuniform float time; uniform vec2 river;\n${NOISE}\n${fragmentPre}`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${color}`)

@@ -80,24 +80,28 @@ export function makePerson(opts, outlineMat) {
   neck.rotation.x = stoop * 0.15;
 
   // 歩き・立ち・身じろぎ
-  function animate(t, { walking = false, speed = 1, sorrow = 0, tension = 0 } = {}) {
-    const ph = t * 6.5 * speed;
-    const amp = walking ? 0.5 : 0;
+  // phase と amp を渡すと、進んだ距離に合わせて脚が動く（速さが変わっても足取りが飛ばない）。
+  // lean は前かがみ、swing は腕の振り、look は首の左右、nod はうつむき、bounce は上下動の大きさ。
+  function animate(t, { walking = false, speed = 1, sorrow = 0, tension = 0, phase, amp, lean = 0, swing = 1, look = 0, nod = 0, bounce = 1 } = {}) {
+    const ph = phase ?? t * 6.5 * speed;
+    const a = amp ?? (walking ? 0.5 : 0);
+    const w = Math.min(1, a / 0.5);
     legs.forEach((L, i) => {
       const s = Math.sin(ph + i * Math.PI);
-      L.hip.rotation.x = s * amp;
-      L.knee.rotation.x = walking ? Math.max(0, -Math.cos(ph + i * Math.PI)) * 0.7 : 0;
+      L.hip.rotation.x = s * a;
+      L.knee.rotation.x = Math.max(0, -Math.cos(ph + i * Math.PI)) * 0.7 * w;
     });
     arms.forEach((A, i) => {
       const s = Math.sin(ph + (1 - i) * Math.PI);
-      A.sh.rotation.x = walking ? s * 0.45 : 0.02 + sorrow * 0.05;
+      A.sh.rotation.x = s * 0.45 * swing * w + (0.02 + sorrow * 0.05) * (1 - w);
       A.sh.rotation.z = (i ? -1 : 1) * (0.08 + tension * 0.25);
-      A.el.rotation.x = walking ? -0.35 : -0.12 - tension * 0.6;
+      A.el.rotation.x = -0.35 * w + (-0.12 - tension * 0.6) * (1 - w);
     });
     // 歩くときの上下動と、うつむき
-    root.position.y = walking ? Math.abs(Math.cos(ph)) * 0.02 : 0;
-    spine.rotation.x = stoop * 0.22 + sorrow * 0.1;
-    neck.rotation.x = stoop * 0.15 + sorrow * 0.3;
+    root.position.y = Math.abs(Math.cos(ph)) * 0.02 * bounce * w;
+    spine.rotation.x = stoop * 0.22 + sorrow * 0.1 + lean;
+    neck.rotation.x = stoop * 0.15 + sorrow * 0.3 + nod;
+    neck.rotation.y = look;
     // 張りつめると肩が上がる
     chest.position.y = 0.07 * k + tension * 0.012;
   }
