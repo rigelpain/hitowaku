@@ -111,7 +111,8 @@ export function createValley(canvas, { seed = 7 } = {}) {
 
   // ---------- 池の水・ダム（石積みの弧と控え壁） ----------
   const pondMat = waterMat('#2F6E8C', 'z');
-  const damMat = masonryMat('#9A958A', 0.5), capMat = masonryMat('#6E6A62', 0.25);
+  const capMat = masonryMat('#6E6A62', 0.25);
+  const DAM_OK = new THREE.Color('#9A958A'), DAM_BAD = new THREE.Color('#5E5248');
   const ponds = [];
   RING.forEach((g, ring) => {
     for (let s = 0; s < SECT; s++) {
@@ -119,6 +120,7 @@ export function createValley(canvas, { seed = 7 } = {}) {
       const gap = 0.45 / g.d0; // 仕切り壁の厚みの分、角度を詰める
       const w = add(sectorGeo(g.d0, g.d1, a0 + gap, a1 - gap), pondMat, { y: g.floor, h: 0.02, cast: false });
       w.userData.basin = i;
+      const damMat = masonryMat('#9A958A', 0.5); // 池ごとに色を変えて、傷みを見せる
       const dam = add(sectorGeo(g.d1, g.d1 + g.damT, a0 + 0.45 / g.d1, a1 - 0.45 / g.d1), damMat, { y: g.floor, h: 1 });
       dam.userData.basin = i;
       const cap = add(sectorGeo(g.d1 - 0.15, g.d1 + g.damT + 0.15, a0 + 0.45 / g.d1, a1 - 0.45 / g.d1), capMat, { y: g.floor, h: 0.25 });
@@ -134,7 +136,7 @@ export function createValley(canvas, { seed = 7 } = {}) {
       }
       const fall = new THREE.Mesh(box, pondMat); fall.visible = false; scene.add(fall);
       const mid = (g.d0 + g.d1) / 2, c = at(mid, sectorAngle(s));
-      ponds.push({ i, ring, sector: s, g, F: g.floor, w, dam, cap, buttress, fall, a0, a1, cx: c.x, cz: c.z, level: -1, capV: -1 });
+      ponds.push({ i, ring, sector: s, g, F: g.floor, w, dam, damMat, cap, buttress, fall, a0, a1, cx: c.x, cz: c.z, level: -1, capV: -1, spill: 0, burst: 0, health: 1 });
     }
   });
   function setPond(i, level, capV) {
@@ -147,18 +149,61 @@ export function createValley(canvas, { seed = 7 } = {}) {
       p.capV = capV;
     }
   }
-  // 決壊：ダムを越えて、台の縁から下の段へ落ちる水
-  function setFall(i, on, amt = 1) {
-    const p = ponds[i];
-    p.fall.visible = on;
-    if (!on) return;
+  // 溢れ（細く流れ続ける）と崩壊（太く一気に）：ダムを越えて、台の縁から下の段へ落ちる水
+  function drawFall(p) {
+    const w = Math.max(p.spill, p.burst);
+    p.fall.visible = w > 0.02;
+    if (!p.fall.visible) return;
     const a = sectorAngle(p.sector), g = p.g;
     const nextFloor = p.ring + 1 < RING.length ? RING[p.ring + 1].floor : 0.2;
-    const top = at(g.d1 + g.damT, a, p.F + Math.max(0.6, p.level * BH));
+    const top = at(g.d1 + g.damT, a, p.F + Math.max(0.6, Math.min(p.capV, p.level) * BH));
     const bot = at(g.edge + 2.5, a, nextFloor + 0.2);
-    p.fall.scale.set(3 + amt * 2, 0.4, top.distanceTo(bot));
+    p.fall.scale.set(0.6 + w * 9, 0.3 + w * 0.5, top.distanceTo(bot));
     p.fall.position.copy(top).add(bot).multiplyScalar(0.5);
     p.fall.lookAt(bot);
+  }
+  const setOverflow = (i, rate) => { ponds[i].spill = Math.min(1, rate * 1.5); };
+  const collapse = (i) => { ponds[i].burst = 1; };
+  // 傷み：ダムの色が暗くなり、欠片が落ちる
+  const setHealth = (i, h) => { const p = ponds[i]; p.health = h; p.damMat.color.copy(DAM_OK).lerp(DAM_BAD, clamp(1 - h, 0, 1)); };
+  const debris = new THREE.InstancedMesh(box, capMat, 160); debris.count = 0; debris.castShadow = true; scene.add(debris);
+  const chips = [];
+  function spawnChip(p) {
+    const a = p.a0 + (p.a1 - p.a0) * (0.15 + Math.random() * 0.7);
+    const pos = at(p.g.d1 + p.g.damT + 0.2, a, p.F + p.capV * BH * (0.4 + Math.random() * 0.5));
+    chips.push({ pos, v: dirOf(a).multiplyScalar(1 + Math.random()), vy: 0, floor: p.ring + 1 < RING.length ? RING[p.ring + 1].floor : 0, life: 3, s: 0.25 + Math.random() * 0.3 });
+  }
+  // 水門の受け渡し：認めた申し出に沿って、池から池へ流れる水
+  const sluiceMeshes = new Map();
+  function setSluices(list) {
+    const keep = new Set();
+    for (const sl of list) {
+      const key = sl.from + '>' + sl.to; keep.add(key);
+      let m = sluiceMeshes.get(key);
+      if (!m) {
+        m = new THREE.Mesh(box, flowMat); scene.add(m); sluiceMeshes.set(key, m);
+        const A = ponds[sl.from], B = ponds[sl.to];
+        let a, b;
+        if (A.ring !== B.ring) {
+          // 下の池へ：ダムの外を、樋で斜めに下ろす
+          const ang = sectorAngle(A.sector) + 0.25;
+          a = at(A.g.d1 + A.g.damT, ang, A.F + Math.min(A.capV, A.level) * BH * 0.6);
+          b = at(B.g.d0 + 2, ang, B.F + 0.5);
+        } else {
+          // 隣の池へ：仕切り壁を越えて横に渡す
+          const mid = (A.g.d0 + A.g.d1) / 2;
+          const wallA = (A.sector + (B.sector === (A.sector + 1) % SECT ? 0.5 : -0.5)) * SPAN;
+          a = at(mid, wallA - 2.5 / mid, A.F + WALL - 0.5);
+          b = at(mid, wallA + (wallA > sectorAngle(A.sector) ? 2.5 : -2.5) / mid, B.F + WALL - 1.2);
+        }
+        const d = new THREE.Vector3().subVectors(b, a);
+        m.scale.set(d.length(), 0.25, 0.7);
+        m.position.copy(a).add(b).multiplyScalar(0.5);
+        m.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), d.normalize());
+      }
+      m.visible = true;
+    }
+    sluiceMeshes.forEach((m, k) => { if (!keep.has(k)) m.visible = false; });
   }
   // 町の水：方角ごと
   const townWater = Array.from({ length: SECT }, (_, s) => {
@@ -203,11 +248,12 @@ export function createValley(canvas, { seed = 7 } = {}) {
     flow.visible = spout.visible = false;
     return { flow, spout };
   });
-  function setTroughs(shares, on) {
+  // 樋の水：池ごとの一日あたりの流れ（flow）に合わせた太さで、流れ続ける
+  function setTroughs(flow) {
     troughs.forEach((t, i) => {
-      const v = on && shares[i] > 0.01;
+      const v = flow[i] > 0.005;
       t.flow.visible = t.spout.visible = v;
-      if (v) { const w = 0.1 + shares[i] * 2.5; t.flow.scale.z = Math.min(0.42, w); t.spout.scale.x = t.spout.scale.z = Math.min(1.2, w * 2.5); }
+      if (v) { const w = 0.06 + flow[i] * 0.8; t.flow.scale.z = Math.min(0.42, w); t.spout.scale.x = t.spout.scale.z = Math.min(1.2, w * 2.2); }
     });
   }
 
@@ -277,7 +323,7 @@ export function createValley(canvas, { seed = 7 } = {}) {
     roof.castShadow = true; roof.userData.home = h.id; H.group.add(roof);
     const slab = new THREE.Mesh(box, roofMat); slab.scale.set(HW + 0.1, 0.1, HW + 0.1); slab.position.y = topY + 0.05; slab.userData.home = h.id; H.group.add(slab);
     H.home = new THREE.Vector3(-0.4, topY + 0.1, 0.4).applyAxisAngle(yAxis, -ba).add(new THREE.Vector3(bx, ponds[h.layer].F, bz));
-    if (!H.target || H.t >= 1) { H.rig.root.position.copy(H.home); H.target = null; }
+    if (!H.placed) { H.rig.root.position.copy(H.home); H.placed = true; }
     return H;
   }
   function moveFigure(id, to, sit = 0, hammer = 0) {
@@ -293,7 +339,8 @@ export function createValley(canvas, { seed = 7 } = {}) {
   Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, far: 260 });
   scene.add(sun); scene.add(sun.target);
   let cam, fx, W, H0;
-  const view = { focus: new THREE.Vector3(0, 8, 6), zoom: 1, yaw: Math.PI / 4, yawTarget: Math.PI / 4 };
+  // 視点は滝の軸（山の中心）のまわりを回る。平行移動した分（focus の x・z）も一緒に回す
+  const view = { focus: new THREE.Vector3(0, 10, 0), zoom: 1, yaw: Math.PI / 4, yawTarget: Math.PI / 4 };
   function placeCam() {
     const a = W / H0, s = (a < 1 ? 64 / a : 50) / view.zoom;
     cam.left = -s * a; cam.right = s * a; cam.top = s; cam.bottom = -s; cam.updateProjectionMatrix();
@@ -319,14 +366,19 @@ export function createValley(canvas, { seed = 7 } = {}) {
   }
   const zoom = (f) => { view.zoom = clamp(view.zoom * f, 0.8, 9); placeCam(); };
   const rotate = (k) => { view.yawTarget += k * Math.PI / 4; };
+  // 池へ寄せる：その池が手前に来るまで滝の軸のまわりを回し、近づく
   const focusOn = (i) => {
     const p = ponds[i];
-    view.focus.set(p.cx, p.F + 3, p.cz);
-    view.zoom = Math.max(view.zoom, 3);
     const want = Math.atan2(p.cx, p.cz);
-    view.yawTarget = view.yaw + Math.atan2(Math.sin(want - view.yaw), Math.cos(want - view.yaw));
+    const d = Math.atan2(Math.sin(want - view.yaw), Math.cos(want - view.yaw));
+    // 回し終えたときに池が真ん中に来るよう、回す前の位置へ置いておく
+    const x = p.cx, z = p.cz;
+    view.focus.set(x * Math.cos(-d) + z * Math.sin(-d), p.F + 3, -x * Math.sin(-d) + z * Math.cos(-d));
+    view.yawTarget = view.yaw + d;
+    view.zoom = Math.max(view.zoom, 3);
     placeCam();
   };
+  const home = () => { view.focus.set(0, 10, 0); view.zoom = 1; placeCam(); };
   const ray = new THREE.Raycaster();
   function pick(px, py) {
     ray.setFromCamera(new THREE.Vector2(px / W * 2 - 1, -(py / H0) * 2 + 1), cam);
@@ -345,7 +397,28 @@ export function createValley(canvas, { seed = 7 } = {}) {
   const selected = { id: null, basin: null };
   function update(dt) {
     t += dt; shared.time.value = t;
-    if (Math.abs(view.yawTarget - view.yaw) > 0.001) { view.yaw += (view.yawTarget - view.yaw) * Math.min(1, dt * 6); placeCam(); }
+    if (Math.abs(view.yawTarget - view.yaw) > 0.001) {
+      const d = (view.yawTarget - view.yaw) * Math.min(1, dt * 6);
+      view.yaw += d;
+      const { x, z } = view.focus;
+      view.focus.x = x * Math.cos(d) + z * Math.sin(d); view.focus.z = -x * Math.sin(d) + z * Math.cos(d);
+      placeCam();
+    }
+    // 溢れ・崩壊の水と、落ちる欠片
+    ponds.forEach((p) => {
+      if (p.burst > 0) p.burst = Math.max(0, p.burst - dt * 0.5);
+      drawFall(p);
+      if (p.health < 0.35 && Math.random() < dt * (0.35 - p.health) * 14) spawnChip(p);
+    });
+    for (let k = chips.length - 1; k >= 0; k--) {
+      const c = chips[k]; c.life -= dt; c.vy -= 18 * dt;
+      c.pos.addScaledVector(c.v, dt); c.pos.y += c.vy * dt;
+      if (c.pos.y < c.floor) { c.pos.y = c.floor; c.vy = 0; c.v.multiplyScalar(0.8); }
+      if (c.life <= 0) chips.splice(k, 1);
+    }
+    debris.count = Math.min(160, chips.length);
+    for (let k = 0; k < debris.count; k++) debris.setMatrixAt(k, m4.compose(chips[k].pos, q0, new THREE.Vector3(chips[k].s, chips[k].s, chips[k].s)));
+    debris.instanceMatrix.needsUpdate = true;
     const wobble = 1 + Math.sin(t * 3.1) * 0.04;
     skyFall.scale.x = skyFall.scale.z = (1.2 + flowAmt * 2) * wobble;
     houses.forEach((Hh, id) => {
@@ -372,7 +445,7 @@ export function createValley(canvas, { seed = 7 } = {}) {
   }
 
   return {
-    update, setPond, setFall, setTroughs, buildHouse, moveFigure, damSpot, houses, toScreen, pick, pan, zoom, rotate, focusOn, selected,
+    update, setPond, setOverflow, collapse, setHealth, setSluices, setTroughs, buildHouse, moveFigure, damSpot, roofSpot: (id) => houses.get(id).home.clone(), houses, toScreen, pick, pan, zoom, rotate, focusOn, home, selected,
     setFlow: (v) => { flowAmt = v; }, setMood: (m) => Object.assign(moodTarget, m),
     setTown: (sector, on) => { townWater[sector].visible = on; },
     labelPoint: (i) => { const p = ponds[i]; return new THREE.Vector3(p.cx, p.F + WALL + 1.2, p.cz); },
