@@ -26,7 +26,7 @@ python3 -m http.server 8765
 
 | ファイル | 役割 |
 | --- | --- |
-| `suimon.js` | 水門番の山（同心円の段・池・ダム・積み木の家・天の滝・樋・ふもとの町）。視点を回す・寄せる・選ぶ |
+| `suimon.js` | 水門番の山。同心円の石積みの台、扇形の池、石のダムと控え壁、放射状の仕切り壁、積み木の家、天の滝、樋、ふもとの町。マス目は使わない。視点を回す・寄せる・選ぶ |
 | `suimon-sim.js` | 水門番の仕組み（画面なし）。水・決壊の連鎖・住人の選択・信頼・見立て・声・AI 水門番との比べ |
 | `suimon-data.js` | 段・方角・名前のある世帯・名前の材料・家の章・声 |
 | `waku.js` | 最後の渡しの場面（川・桟橋・舟・浮き）と、一問の流れ（舵→寄る→乗る→出る） |
@@ -34,7 +34,7 @@ python3 -m http.server 8765
 | `journey.js` | 地形（seed つき）、木、川、舟、荷車、人の配置、雨、カメラ追従、状態の更新 |
 | `journey.html` | 台本（いつ誰が何を言うか、投票、別れ）と吹き出しの文字演出 |
 | `person.js` | ふつうの体型の人。関節で組み、歩く・感情で姿勢が変わる |
-| `materials.js` | 素材シェーダー（草・道・砂・土の層・水・木目・葉・岩・布）。MeshStandardMaterial に onBeforeCompile で差し込む |
+| `materials.js` | 素材シェーダー（草・道・砂・土の層・水・木目・葉・岩・石積み・布）。地面のタイルの継ぎ目は `seams` で外せる。MeshStandardMaterial に onBeforeCompile で差し込む |
 | `post.js` | 後処理。色つき点描（限られた色の組でベイヤー配列）、感情パラメーター、白黒点描、ティルトシフト |
 | `vendor/three.module.js` | three.js 0.170（MIT）。importmap で読む |
 | `fonts/` | しっぽり明朝ほか（SIL OFL）。Google Fonts に頼らず同梱 |

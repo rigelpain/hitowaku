@@ -34,9 +34,10 @@ function patch(material, { uniforms = {}, vertexPre = '', vertex = '', fragmentP
 }
 
 // 地面の塊：上は草（または道・砂）、側面は層になった土。上の縁には草が垂れる。
-export function ground(top, side = '#7A5A3C', kind = 'grass') {
+// seams：タイルの継ぎ目（ごく薄い格子）を入れるか。マス目で組まない地面では外す
+export function ground(top, side = '#7A5A3C', kind = 'grass', { seams = true } = {}) {
   const m = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95 });
-  m.name = `ground-${kind}-${top}`;
+  m.name = `ground-${kind}-${top}-${seams ? 's' : 'n'}`;
   return patch(m, {
     uniforms: { topCol: { value: new THREE.Color(top) }, sideCol: { value: new THREE.Color(side) } },
     fragmentPre: `uniform vec3 topCol; uniform vec3 sideCol;`,
@@ -64,9 +65,9 @@ export function ground(top, side = '#7A5A3C', kind = 'grass') {
         ${kind === 'sand' ? `
         float ripple = sin(xz.x * 9.0 + fbm(xz * 2.0) * 4.0);
         c *= 0.95 + 0.06 * ripple;` : ''}
-        // タイルの継ぎ目は、ごく薄い溝として残す
+        ${seams ? `// タイルの継ぎ目は、ごく薄い溝として残す
         vec2 e = abs(fract(xz + 0.5) - 0.5);
-        c *= 1.0 - 0.025 * smoothstep(0.48, 0.5, max(e.x, e.y));
+        c *= 1.0 - 0.025 * smoothstep(0.48, 0.5, max(e.x, e.y));` : ''}
         diffuseColor.rgb = c;
       } else {
         // 側面：横に流れる地層と、上縁の草
@@ -161,6 +162,34 @@ export function stone(col = '#9A958A') {
       float n = fbm(vWorld.xz * 5.0 + vWorld.y * 3.0);
       vec3 c = diffuseColor.rgb * (0.75 + 0.4 * n);
       c *= 1.0 - 0.3 * smoothstep(0.03, 0.0, abs(vnoise(vWorld.xz * 4.0 + vWorld.y * 4.0) - 0.5));
+      diffuseColor.rgb = c;
+    `,
+  });
+}
+
+// 石積み：横にそろった段と、段ごとにずれる縦の目地。人が築いた壁に使う
+export function masonry(col = '#A49D8F', course = 0.55) {
+  const m = new THREE.MeshStandardMaterial({ color: col, roughness: 0.9 });
+  m.name = `masonry-${col}-${course}`;
+  return patch(m, {
+    color: `
+      vec3 n = normalize(vWNormal);
+      vec3 c = diffuseColor.rgb;
+      float grain = fbm(vWorld.xz * 3.0 + vWorld.y * 2.0);
+      c *= 0.82 + 0.3 * grain;
+      if (abs(n.y) < 0.5) {
+        float row = floor(vWorld.y / ${course.toFixed(3)});
+        float along = (vWorld.x * n.z - vWorld.z * n.x) / ${(course * 2.2).toFixed(3)} + row * 0.5;
+        float stoneId = h21(vec2(floor(along), row));
+        c *= 0.88 + 0.22 * stoneId;
+        float bed = smoothstep(0.07, 0.0, fract(vWorld.y / ${course.toFixed(3)}));
+        float joint = smoothstep(0.05, 0.0, fract(along));
+        c *= 1.0 - 0.35 * max(bed, joint);
+      } else {
+        // 上の面：大きめの敷石
+        float slab = h21(floor(vWorld.xz * 0.9));
+        c *= 0.9 + 0.15 * slab;
+      }
       diffuseColor.rgb = c;
     `,
   });

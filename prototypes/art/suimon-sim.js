@@ -7,7 +7,7 @@ export const SEASONS = 8;
 const DRAIN = 1.6;     // 季節ごとに池から川へ抜ける水（水かさが高いほど DRAIN_K の割合で多く抜ける）
 const DRAIN_K = 0.3;
 const AGING = 0.25;    // 手入れしないとダムは低くなる
-const BUILD = 0.32;    // 補強の効き
+const BUILD = 0.22;    // 補強の効き
 const FALL = [24, 40]; // 滝の水の量（12 の池の合計）。季節ごとに FALL_UP ずつ太る
 const FALL_UP = 1.8;
 
@@ -35,7 +35,8 @@ export function createSim(seed, { voiceLevel = 2 } = {}) {
   const born = [];
   HOMES.forEach((h) => born.push({ ...h, layer: basinIndex(h.ring, h.sector) }));
   layers.forEach((l) => {
-    const extra = 1 + (R() < 0.5 ? 1 : 0);
+    // 外の段ほど池が広く、人が多い
+    const extra = [1, 2, 3][l.ring] + (R() < 0.5 ? 1 : 0);
     for (let k = 0; k < extra; k++) {
       const fam = nextFamily(), given = nextGiven();
       const [m0, m1] = RINGS[l.ring].members;
